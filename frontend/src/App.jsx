@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 function App() {
   const [view, setView] = useState("home");
@@ -778,6 +778,56 @@ function App() {
     "";
 
   // ==========================================
+  // PROFILE MENU
+  // ==========================================
+
+  const profileRef = useRef(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const getProfileInitials = (name) => {
+    const cleaned = String(name || "").trim();
+    if (!cleaned) return "MA";
+
+    const parts = cleaned.split(/\s+/).filter(Boolean);
+
+    if (parts.length >= 2) {
+      return (
+        parts[0].charAt(0) +
+        parts[parts.length - 1].charAt(0)
+      ).toUpperCase();
+    }
+
+    return cleaned.slice(0, 2).toUpperCase();
+  };
+
+  useEffect(() => {
+    if (!profileOpen) return;
+
+    const handleClickOutside = (event) => {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(event.target)
+      ) {
+        setProfileOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setProfileOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [profileOpen]);
+
+  // ==========================================
   // SIDEBAR NAVIGATION
   // ==========================================
 
@@ -853,7 +903,35 @@ function App() {
 
         </div>
 
-        {/* DASHBOARD QUOTATION + HUMAN ANIMATION */}
+        {/* MARITIME SHIP ANIMATION */}
+
+        <div className="ship-scene" aria-hidden="true">
+          <div className="ship-water">
+            <div className="wave wave-1"></div>
+            <div className="wave wave-2"></div>
+            <div className="wave wave-3"></div>
+          </div>
+          <div className="ship-body">
+            <div className="ship-hull"></div>
+            <div className="ship-deck"></div>
+            <div className="ship-bridge"></div>
+            <div className="ship-funnel"></div>
+            <div className="ship-funnel-smoke">
+              <div className="smoke-puff smoke-1"></div>
+              <div className="smoke-puff smoke-2"></div>
+              <div className="smoke-puff smoke-3"></div>
+            </div>
+            <div className="ship-containers">
+              <div className="container c1"></div>
+              <div className="container c2"></div>
+              <div className="container c3"></div>
+              <div className="container c4"></div>
+              <div className="container c5"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* DASHBOARD QUOTATION + WORKSTATION ILLUSTRATION */}
 
         <div
           className="dashboard-quote-section"
@@ -861,18 +939,64 @@ function App() {
         >
 
           <div
-            className="human-illustration"
+            className="workstation-illustration"
             aria-hidden="true"
           >
-            <div className="human-shadow"></div>
-            <div className="human-head"></div>
-            <div className="human-body"></div>
-            <div className="human-arm human-arm-left"></div>
-            <div className="human-arm human-arm-right"></div>
-            <div className="human-hand human-hand-left"></div>
-            <div className="human-hand human-hand-right"></div>
-            <div className="human-leg human-leg-left"></div>
-            <div className="human-leg human-leg-right"></div>
+            <div className="ws-backdrop"></div>
+            <div className="ws-shadow"></div>
+
+            <div className="ws-person">
+              <div className="ws-head">
+                <div className="ws-hair"></div>
+              </div>
+              <div className="ws-body"></div>
+              <div className="ws-arm ws-arm-left"></div>
+              <div className="ws-arm ws-arm-right"></div>
+              <div className="ws-hand ws-hand-left"></div>
+              <div className="ws-hand ws-hand-right"></div>
+            </div>
+
+            <div className="ws-laptop">
+              <div className="ws-laptop-screen">
+                <div className="ws-screen-glow"></div>
+                <div className="ws-screen-route">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div className="ws-screen-ship"></div>
+              </div>
+              <div className="ws-laptop-base"></div>
+            </div>
+
+            <div className="ws-legs"></div>
+
+            <div className="ws-backpack"></div>
+
+            <div className="ws-books">
+              <div className="ws-book ws-book-1"></div>
+              <div className="ws-book ws-book-2"></div>
+              <div className="ws-book ws-book-3"></div>
+            </div>
+
+            <div className="ws-ai-badge">
+              <span className="ws-ai-dot"></span>
+              AI ACTIVE
+            </div>
+
+            <div className="ws-ship">
+              <div className="ws-ship-hull"></div>
+              <div className="ws-ship-deck"></div>
+              <div className="ws-ship-bridge"></div>
+              <span className="ws-ship-route"></span>
+            </div>
+
+            <div className="ws-route-line"></div>
+
+            <div className="ws-node ws-node-1"></div>
+            <div className="ws-node ws-node-2"></div>
+            <div className="ws-node ws-node-3"></div>
+            <div className="ws-node ws-node-4"></div>
           </div>
 
           <div className="dashboard-quote-card">
@@ -1083,6 +1207,35 @@ function App() {
 
         </div>
 
+        {/* ANIMATED ROUTE NETWORK */}
+
+        {origin && destination && (
+          <div className="route-network" aria-hidden="true">
+            <div className="route-node route-origin">
+              <span className="route-node-dot"></span>
+              <span className="route-node-label">{origin}</span>
+            </div>
+            <div className={`route-line-segment ${loading ? 'route-line-active' : ''}`}>
+              <div className="route-line-path"></div>
+              <div className="route-line-dot route-line-dot-1"></div>
+              <div className="route-line-dot route-line-dot-2"></div>
+            </div>
+            <div className="route-node route-port">
+              <span className="route-node-dot"></span>
+              <span className="route-node-label">Via Port</span>
+            </div>
+            <div className={`route-line-segment ${loading ? 'route-line-active' : ''}`}>
+              <div className="route-line-path"></div>
+              <div className="route-line-dot route-line-dot-1"></div>
+              <div className="route-line-dot route-line-dot-2"></div>
+            </div>
+            <div className="route-node route-dest">
+              <span className="route-node-dot"></span>
+              <span className="route-node-label">{destination}</span>
+            </div>
+          </div>
+        )}
+
         <form
           className="route-form"
           onSubmit={handleAnalyze}
@@ -1262,11 +1415,23 @@ function App() {
           {/* LOADING */}
 
           {loading && (
-            <div className="loading-message">
+            <div className="loading-message ai-loading-message">
 
-              <span className="loading-spinner"></span>
+              <div className="ai-agent" aria-hidden="true">
+                <span className="ai-agent-core"></span>
+                <span className="ai-agent-ring ai-ring-1"></span>
+                <span className="ai-agent-ring ai-ring-2"></span>
+                <span className="ai-agent-scan"></span>
+              </div>
 
-              Analyzing available routes...
+              <div className="ai-loading-text">
+                <strong>AI Route Agent analyzing</strong>
+                <span className="ai-loading-dots">
+                  <i></i>
+                  <i></i>
+                  <i></i>
+                </span>
+              </div>
 
             </div>
           )}
@@ -1407,7 +1572,7 @@ function App() {
         {/* RECOMMENDATION */}
 
         {recommendedRoute && (
-          <div className="recommendation-card">
+          <div className="recommendation-card result-animate">
 
             <div className="recommendation-top">
 
@@ -1516,7 +1681,7 @@ function App() {
 
         {/* ROUTE COMPARISON */}
 
-        <div className="comparison-section">
+        <div className="comparison-section result-animate result-animate-2">
 
           <div className="comparison-heading">
 
@@ -2188,27 +2353,120 @@ function App() {
 
           </div>
 
-          <div className="topbar-profile">
+          <div
+            className="topbar-profile"
+            ref={profileRef}
+          >
 
-            <div className="profile-avatar">
+            <button
+              className={
+                profileOpen
+                  ? "profile-trigger profile-trigger-open"
+                  : "profile-trigger"
+              }
+              type="button"
+              onClick={() =>
+                setProfileOpen((open) => !open)
+              }
+              aria-haspopup="menu"
+              aria-expanded={profileOpen}
+              aria-label="Open user profile menu"
+            >
 
-              {profileName
-                .charAt(0)
-                .toUpperCase()}
-
-            </div>
-
-            <div className="profile-info">
-
-              <strong>
-                {profileName}
-              </strong>
-
-              <span>
-                Maritime User
+              <span className="profile-avatar">
+                {getProfileInitials(profileName)}
               </span>
 
-            </div>
+              <span className="profile-info">
+
+                <strong className="profile-name">
+                  {profileName}
+                </strong>
+
+                <span className="profile-role">
+                  Maritime Analyst
+                </span>
+
+              </span>
+
+              <span
+                className={
+                  profileOpen
+                    ? "profile-caret profile-caret-open"
+                    : "profile-caret"
+                }
+                aria-hidden="true"
+              ></span>
+
+            </button>
+
+            {profileOpen && (
+              <div
+                className="profile-menu"
+                role="menu"
+                aria-label="User account menu"
+              >
+
+                <div className="profile-menu-head">
+
+                  <span className="profile-menu-avatar">
+                    {getProfileInitials(profileName)}
+                  </span>
+
+                  <div className="profile-menu-id">
+
+                    <strong>
+                      {profileName}
+                    </strong>
+
+                    <span>
+                      {profileContact ||
+                        "Maritime Analyst"}
+                    </span>
+
+                  </div>
+
+                </div>
+
+                <div className="profile-menu-rows">
+
+                  <div className="profile-menu-row">
+
+                    <span>
+                      Role
+                    </span>
+
+                    <strong>
+                      Maritime Analyst
+                    </strong>
+
+                  </div>
+
+                  <div className="profile-menu-row">
+
+                    <span>
+                      Account
+                    </span>
+
+                    <strong className="account-active">
+                      Active
+                    </strong>
+
+                  </div>
+
+                </div>
+
+                <button
+                  className="profile-menu-logout"
+                  type="button"
+                  onClick={handleLogout}
+                  role="menuitem"
+                >
+                  Logout
+                </button>
+
+              </div>
+            )}
 
           </div>
 
