@@ -1,0 +1,953 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Login | Maritime AI</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+
+            background:
+                linear-gradient(
+                    120deg,
+                    rgba(3, 15, 31, 0.96),
+                    rgba(8, 35, 61, 0.92)
+                ),
+                url("https://images.unsplash.com/photo-1494412574643-ff11b0a9d1c6?auto=format&fit=crop&w=2000&q=80");
+
+            background-size: cover;
+            background-position: center;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            color: white;
+        }
+
+        .page {
+            width: 100%;
+            min-height: 100vh;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            padding: 30px;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 1100px;
+
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+
+            background: rgba(255, 255, 255, 0.97);
+
+            border-radius: 22px;
+
+            overflow: hidden;
+
+            box-shadow:
+                0 30px 80px rgba(0, 0, 0, 0.45);
+        }
+
+        /* =====================================================
+           LEFT BUSINESS PANEL
+        ===================================================== */
+
+        .business-panel {
+            position: relative;
+
+            padding: 60px;
+
+            background:
+                linear-gradient(
+                    145deg,
+                    #071a2d,
+                    #0c3556
+                );
+
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .brand {
+            position: absolute;
+
+            top: 32px;
+            left: 40px;
+
+            display: flex;
+            align-items: center;
+            gap: 12px;
+
+            font-size: 20px;
+            font-weight: 900;
+
+            letter-spacing: 1.5px;
+        }
+
+        .brand-icon {
+            width: 42px;
+            height: 42px;
+
+            border-radius: 12px;
+
+            background: #ffffff;
+
+            color: #08243d;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            font-size: 22px;
+        }
+
+        .business-content {
+            max-width: 500px;
+        }
+
+        .eyebrow {
+            color: #72c9ff;
+
+            font-size: 13px;
+
+            font-weight: 800;
+
+            letter-spacing: 2px;
+
+            margin-bottom: 18px;
+        }
+
+        .business-panel h1 {
+            font-size: 48px;
+
+            line-height: 1.08;
+
+            font-weight: 900;
+
+            margin-bottom: 22px;
+        }
+
+        .business-panel h1 span {
+            color: #66c7ff;
+        }
+
+        .business-panel p {
+            color: #c7d7e5;
+
+            font-size: 17px;
+
+            line-height: 1.7;
+
+            margin-bottom: 35px;
+        }
+
+        .business-points {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .business-point {
+            display: flex;
+            align-items: center;
+
+            gap: 12px;
+
+            color: #e9f5ff;
+
+            font-size: 14px;
+
+            font-weight: 600;
+        }
+
+        .check {
+            width: 27px;
+            height: 27px;
+
+            border-radius: 50%;
+
+            background: rgba(102, 199, 255, 0.15);
+
+            border: 1px solid rgba(102, 199, 255, 0.4);
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            color: #70caff;
+        }
+
+        /* =====================================================
+           RIGHT LOGIN PANEL
+        ===================================================== */
+
+        .login-panel {
+            padding: 55px 50px;
+
+            color: #12263a;
+
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .login-header {
+            margin-bottom: 35px;
+        }
+
+        .login-header h2 {
+            font-size: 34px;
+
+            font-weight: 900;
+
+            margin-bottom: 10px;
+        }
+
+        .login-header p {
+            color: #6b7c8d;
+
+            font-size: 15px;
+
+            line-height: 1.5;
+        }
+
+        .form-group {
+            margin-bottom: 22px;
+        }
+
+        label {
+            display: block;
+
+            font-size: 13px;
+
+            font-weight: 800;
+
+            color: #253b50;
+
+            margin-bottom: 9px;
+        }
+
+        input {
+            width: 100%;
+
+            height: 52px;
+
+            padding: 0 16px;
+
+            border: 1px solid #d6e0e8;
+
+            border-radius: 10px;
+
+            outline: none;
+
+            font-size: 15px;
+
+            transition: 0.2s;
+        }
+
+        input:focus {
+            border-color: #1479b8;
+
+            box-shadow:
+                0 0 0 3px rgba(20, 121, 184, 0.1);
+        }
+
+        /* =====================================================
+           PASSWORD FIELD
+        ===================================================== */
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-wrapper input {
+            padding-right: 52px;
+        }
+
+        .password-toggle {
+            position: absolute;
+
+            right: 14px;
+            top: 50%;
+
+            transform: translateY(-50%);
+
+            border: none;
+
+            background: transparent;
+
+            cursor: pointer;
+
+            font-size: 19px;
+
+            color: #647789;
+        }
+
+        .password-toggle:hover {
+            color: #0a3557;
+        }
+
+        /* =====================================================
+           LOGIN BUTTON
+        ===================================================== */
+
+        .login-button {
+            width: 100%;
+
+            height: 53px;
+
+            border: none;
+
+            border-radius: 10px;
+
+            background: #0a3557;
+
+            color: white;
+
+            font-size: 15px;
+
+            font-weight: 800;
+
+            cursor: pointer;
+
+            transition: 0.2s;
+        }
+
+        .login-button:hover {
+            background: #0d527f;
+
+            transform: translateY(-1px);
+        }
+
+        .login-button:disabled {
+            opacity: 0.6;
+
+            cursor: not-allowed;
+
+            transform: none;
+        }
+
+        /* =====================================================
+           FORGOT PASSWORD
+        ===================================================== */
+
+        .forgot-password {
+            text-align: right;
+
+            margin-top: 10px;
+
+            margin-bottom: 5px;
+        }
+
+        .forgot-password a {
+            color: #176d9e;
+
+            font-size: 13px;
+
+            font-weight: 700;
+
+            text-decoration: none;
+        }
+
+        .forgot-password a:hover {
+            text-decoration: underline;
+        }
+
+        /* =====================================================
+           MESSAGE
+        ===================================================== */
+
+        .message {
+            margin-top: 18px;
+
+            padding: 12px 14px;
+
+            border-radius: 9px;
+
+            font-size: 13px;
+
+            display: none;
+
+            line-height: 1.5;
+        }
+
+        .message.error {
+            display: block;
+
+            background: #fff1f1;
+
+            color: #b42318;
+
+            border: 1px solid #ffd3d0;
+        }
+
+        .message.success {
+            display: block;
+
+            background: #effaf3;
+
+            color: #18763d;
+
+            border: 1px solid #ccebd7;
+        }
+
+        /* =====================================================
+           REGISTER
+        ===================================================== */
+
+        .register-link {
+            text-align: center;
+
+            margin-top: 30px;
+
+            color: #6b7c8d;
+
+            font-size: 14px;
+        }
+
+        .register-link a {
+            color: #0b5f8e;
+
+            font-weight: 800;
+
+            text-decoration: none;
+        }
+
+        .register-link a:hover {
+            text-decoration: underline;
+        }
+
+        /* =====================================================
+           SECURITY
+        ===================================================== */
+
+        .security {
+            margin-top: 28px;
+
+            padding-top: 20px;
+
+            border-top: 1px solid #e7edf2;
+
+            text-align: center;
+
+            color: #8998a6;
+
+            font-size: 11px;
+        }
+
+        /* =====================================================
+           MOBILE
+        ===================================================== */
+
+        @media (max-width: 850px) {
+
+            .login-container {
+                grid-template-columns: 1fr;
+            }
+
+            .business-panel {
+                display: none;
+            }
+
+            .login-panel {
+                padding: 45px 30px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="page">
+
+    <div class="login-container">
+
+        <!-- =================================================
+             BUSINESS SIDE
+        ================================================== -->
+
+        <section class="business-panel">
+
+            <div class="brand">
+
+                <div class="brand-icon">
+                    🚢
+                </div>
+
+                MARITIME AI
+
+            </div>
+
+            <div class="business-content">
+
+                <div class="eyebrow">
+                    INTELLIGENT MARITIME FREIGHT
+                </div>
+
+                <h1>
+                    Move freight<br>
+                    <span>smarter.</span>
+                </h1>
+
+                <p>
+                    Access intelligent maritime routing,
+                    shipment analysis and freight
+                    decision-support tools built for
+                    modern logistics operations.
+                </p>
+
+                <div class="business-points">
+
+                    <div class="business-point">
+                        <span class="check">✓</span>
+                        Intelligent route recommendations
+                    </div>
+
+                    <div class="business-point">
+                        <span class="check">✓</span>
+                        Compare available maritime routes
+                    </div>
+
+                    <div class="business-point">
+                        <span class="check">✓</span>
+                        Faster freight planning decisions
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             LOGIN PANEL
+        ================================================== -->
+
+        <section class="login-panel">
+
+            <div class="login-header">
+
+                <h2>
+                    Welcome back
+                </h2>
+
+                <p>
+                    Sign in to access your Maritime AI
+                    freight operations dashboard.
+                </p>
+
+            </div>
+
+
+            <!-- =================================================
+                 LOGIN FORM
+            ================================================== -->
+
+            <form id="loginForm">
+
+                <!-- CONTACT -->
+
+                <div class="form-group">
+
+                    <label for="contact">
+                        EMAIL OR MOBILE NUMBER
+                    </label>
+
+                    <input
+                        type="text"
+                        id="contact"
+                        placeholder="Enter your email or mobile number"
+                        autocomplete="username"
+                        required
+                    >
+
+                </div>
+
+
+                <!-- PASSWORD -->
+
+                <div class="form-group">
+
+                    <label for="password">
+                        PASSWORD
+                    </label>
+
+                    <div class="password-wrapper">
+
+                        <input
+                            type="password"
+                            id="password"
+                            placeholder="Enter your password"
+                            autocomplete="current-password"
+                            required
+                        >
+
+                        <button
+                            type="button"
+                            class="password-toggle"
+                            id="passwordToggle"
+                            aria-label="Show password"
+                        >
+                            👁
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- FORGOT PASSWORD -->
+
+                <div class="forgot-password">
+
+                    <a href="#" id="forgotPassword">
+                        Forgot password?
+                    </a>
+
+                </div>
+
+
+                <!-- LOGIN BUTTON -->
+
+                <button
+                    type="submit"
+                    class="login-button"
+                    id="loginButton"
+                >
+                    Sign In
+                </button>
+
+            </form>
+
+
+            <!-- MESSAGE -->
+
+            <div
+                id="message"
+                class="message"
+            ></div>
+
+
+            <!-- REGISTER -->
+
+            <div class="register-link">
+
+                New to Maritime AI?
+
+                <a href="register.html">
+                    Register your business profile
+                </a>
+
+            </div>
+
+
+            <!-- SECURITY -->
+
+            <div class="security">
+
+                🔒 Secure password authentication • Maritime AI
+
+            </div>
+
+        </section>
+
+    </div>
+
+</div>
+
+
+<script>
+
+const API_URL = "http://127.0.0.1:8000";
+
+
+/* =========================================================
+   ELEMENTS
+========================================================= */
+
+const loginForm =
+    document.getElementById("loginForm");
+
+const contactInput =
+    document.getElementById("contact");
+
+const passwordInput =
+    document.getElementById("password");
+
+const passwordToggle =
+    document.getElementById("passwordToggle");
+
+const loginButton =
+    document.getElementById("loginButton");
+
+const message =
+    document.getElementById("message");
+
+const forgotPassword =
+    document.getElementById("forgotPassword");
+
+
+/* =========================================================
+   SHOW MESSAGE
+========================================================= */
+
+function showMessage(text, type) {
+
+    message.textContent = text;
+
+    message.className =
+        "message " + type;
+}
+
+
+/* =========================================================
+   CLEAR MESSAGE
+========================================================= */
+
+function clearMessage() {
+
+    message.textContent = "";
+
+    message.className = "message";
+}
+
+
+/* =========================================================
+   PASSWORD SHOW / HIDE
+========================================================= */
+
+passwordToggle.addEventListener(
+    "click",
+    function() {
+
+        if (passwordInput.type === "password") {
+
+            passwordInput.type = "text";
+
+            passwordToggle.textContent = "🙈";
+
+            passwordToggle.setAttribute(
+                "aria-label",
+                "Hide password"
+            );
+
+        } else {
+
+            passwordInput.type = "password";
+
+            passwordToggle.textContent = "👁";
+
+            passwordToggle.setAttribute(
+                "aria-label",
+                "Show password"
+            );
+        }
+
+    }
+);
+
+
+/* =========================================================
+   LOGIN
+========================================================= */
+
+loginForm.addEventListener(
+    "submit",
+    async function(event) {
+
+        event.preventDefault();
+
+        clearMessage();
+
+        const contact =
+            contactInput.value.trim();
+
+        const password =
+            passwordInput.value;
+
+
+        /* =============================================
+           BASIC VALIDATION
+        ============================================= */
+
+        if (!contact) {
+
+            showMessage(
+                "Please enter your email or mobile number.",
+                "error"
+            );
+
+            contactInput.focus();
+
+            return;
+        }
+
+
+        if (!password) {
+
+            showMessage(
+                "Please enter your password.",
+                "error"
+            );
+
+            passwordInput.focus();
+
+            return;
+        }
+
+
+        /* =============================================
+           LOGIN BUTTON
+        ============================================= */
+
+        loginButton.disabled = true;
+
+        loginButton.textContent =
+            "Signing in...";
+
+
+        try {
+
+            const response =
+                await fetch(
+                    `${API_URL}/api/auth/login`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            contact: contact,
+                            password: password
+                        })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            /* =============================================
+               ERROR
+            ============================================= */
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.detail ||
+                    data.message ||
+                    "Invalid email/mobile number or password."
+                );
+            }
+
+
+            /* =============================================
+               LOGIN SUCCESS
+            ============================================= */
+
+            localStorage.setItem(
+                "isLoggedIn",
+                "true"
+            );
+
+            localStorage.setItem(
+                "loggedInUser",
+                JSON.stringify(
+                    data.user || {}
+                )
+            );
+
+            localStorage.setItem(
+                "user",
+                JSON.stringify(
+                    data.user || {}
+                )
+            );
+
+
+            showMessage(
+                "Login successful. Opening your dashboard...",
+                "success"
+            );
+
+
+            /* =============================================
+               REDIRECT
+            ============================================= */
+
+            setTimeout(
+                function() {
+
+                    window.location.href = "http://localhost:5173/";
+
+                },
+                800
+            );
+
+
+        } catch (error) {
+
+            showMessage(
+                error.message ||
+                "Unable to login. Please try again.",
+                "error"
+            );
+
+
+        } finally {
+
+            loginButton.disabled = false;
+
+            loginButton.textContent =
+                "Sign In";
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   FORGOT PASSWORD
+========================================================= */
+
+forgotPassword.addEventListener(
+    "click",
+    function(event) {
+
+        event.preventDefault();
+
+        showMessage(
+            "Password recovery will be available soon. Please contact the administrator if you cannot access your account.",
+            "error"
+        );
+
+    }
+);
+
+</script>
+
+</body>
+</html>
