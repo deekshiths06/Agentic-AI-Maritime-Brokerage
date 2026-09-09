@@ -404,6 +404,126 @@ def get_locations():
 
 
 # ============================================================
+# CARGO SUBTYPES
+# ============================================================
+
+@app.get("/api/routes/cargo-subtypes")
+def get_cargo_subtypes(
+    origin: str = "",
+    destination: str = "",
+    cargo_type: str = ""
+):
+
+    import pandas as pd
+
+    df = pd.read_csv(
+        "app/routes.csv"
+    )
+
+    filters_provided = bool(
+        origin or destination or cargo_type
+    )
+
+    # -----------------------------------------------------
+    # PARTIAL FILTERS ARE NOT ALLOWED
+    # -----------------------------------------------------
+
+    if filters_provided and not (
+        origin and destination and cargo_type
+    ):
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "origin, destination and cargo_type "
+                "are all required."
+            )
+        )
+
+    # -----------------------------------------------------
+    # FILTERED CARGO SUBTYPES
+    # Origin + Destination + Cargo Type
+    # -----------------------------------------------------
+
+    if filters_provided:
+
+        mask = (
+            df["origin"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            ==
+            origin.strip().lower()
+        ) & (
+            df["destination"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            ==
+            destination.strip().lower()
+        ) & (
+            df["cargo_type"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            ==
+            cargo_type.strip().lower()
+        )
+
+        subtypes = sorted(
+            set(
+                df.loc[mask, "cargo_subtype"]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+                .tolist()
+            )
+        )
+
+        subtypes = [
+            subtype
+            for subtype in subtypes
+            if subtype
+        ]
+
+        return {
+            "origin": origin.strip(),
+            "destination": destination.strip(),
+            "cargo_type": cargo_type.strip(),
+            "cargo_subtypes": subtypes
+        }
+
+    # -----------------------------------------------------
+    # GLOBAL CARGO SUBTYPES
+    # Grouped by cargo type for the Cargo Type dropdown
+    # -----------------------------------------------------
+
+    cargo_subtypes = {}
+
+    for cargo_type_value, group in df.groupby(
+        "cargo_type"
+    ):
+
+        subtypes = sorted(
+            group["cargo_subtype"]
+            .dropna()
+            .astype(str)
+            .str.strip()
+            .unique()
+            .tolist()
+        )
+
+        cargo_subtypes[
+            str(cargo_type_value).strip()
+        ] = subtypes
+
+    return cargo_subtypes
+
+
+# ============================================================
 # ROUTE ANALYSIS
 # ============================================================
 
@@ -412,9 +532,19 @@ def analyze_shipment(
     request: RouteRequest
 ):
 
-    return analyze_route(
-        request.origin,
-        request.destination,
-        request.cargo_type,
-        request.containers
-    )
+    try:
+
+        return analyze_route(
+            request.origin,
+            request.destination,
+            request.cargo_type,
+            request.cargo_subtype,
+            request.containers
+        )
+
+    except ValueError as error:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )

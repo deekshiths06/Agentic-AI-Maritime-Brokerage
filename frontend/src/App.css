@@ -1915,6 +1915,17 @@ tbody tr:hover {
   color: #9ba8b4;
 }
 
+.subtype-note {
+  margin-top: 10px;
+  padding: 11px 14px;
+  border: 1px solid #f0d9a8;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: #9a6b1f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .form-group.full-width {
   grid-column: 1 / -1;
 }

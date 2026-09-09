@@ -1,57 +1,5 @@
 import React, { useEffect, useState } from "react";
 
-const cargoSubtypes = {
-  Bulk: [
-    "Grain",
-    "Coal",
-    "Iron Ore",
-    "Steel",
-    "Timber",
-    "Cement",
-    "Fertilizer",
-    "Sugar",
-    "Rice",
-    "Wheat",
-  ],
-
-  "General Cargo": [
-    "Machinery",
-    "Automotive Parts",
-    "Furniture",
-    "Construction Materials",
-    "Industrial Equipment",
-    "Paper Products",
-    "Metal Products",
-  ],
-
-  Containerized: [
-    "Electronics",
-    "Textiles",
-    "Consumer Goods",
-    "Clothing",
-    "Household Goods",
-    "Plastic Products",
-    "Packaged Food",
-  ],
-
-  Perishable: [
-    "Fruits",
-    "Vegetables",
-    "Fresh Produce",
-    "Frozen Food",
-    "Seafood",
-    "Dairy Products",
-  ],
-
-  Hazardous: [
-    "Chemicals",
-    "Petroleum Products",
-    "Industrial Chemicals",
-    "Flammable Materials",
-    "Toxic Chemicals",
-  ],
-};
-
 function App() {
   const [view, setView] = useState("home");
   const [activeNav, setActiveNav] = useState("Dashboard");
@@ -63,6 +11,10 @@ function App() {
   const [destination, setDestination] = useState("");
   const [cargoType, setCargoType] = useState("");
   const [cargoSubtype, setCargoSubtype] = useState("");
+  const [cargoSubtypesByType, setCargoSubtypesByType] = useState({});
+  const [routeCargoSubtypes, setRouteCargoSubtypes] = useState([]);
+  const [subtypesLoading, setSubtypesLoading] = useState(false);
+
   const [containers, setContainers] = useState(1);
 
   const [result, setResult] = useState(null);
@@ -120,7 +72,26 @@ function App() {
       }
     };
 
+    const loadCargoSubtypes = async () => {
+      try {
+        const response = await fetch(
+          "http://127.0.0.1:8000/api/routes/cargo-subtypes"
+        );
+
+        if (!response.ok) {
+          throw new Error("Unable to load cargo subtypes");
+        }
+
+        const data = await response.json();
+
+        setCargoSubtypesByType(data || {});
+      } catch (err) {
+        console.error("Cargo subtypes loading error:", err);
+      }
+    };
+
     loadLocations();
+    loadCargoSubtypes();
   }, []);
 
   // ==========================================
@@ -147,12 +118,120 @@ function App() {
   };
 
   // ==========================================
-  // CARGO CHANGE
+  // CARGO SUBTYPES
+  // Fetch the subtypes that actually exist for
+  // the selected origin + destination + cargo type.
+  // ==========================================
+
+  const fetchRouteSubtypes = async (
+    selectedOrigin,
+    selectedDestination,
+    selectedCargoType
+  ) => {
+    if (
+      !selectedOrigin ||
+      !selectedDestination ||
+      !selectedCargoType
+    ) {
+      setRouteCargoSubtypes([]);
+      return;
+    }
+
+    setSubtypesLoading(true);
+    setError("");
+
+    try {
+      const params = new URLSearchParams({
+        origin: selectedOrigin,
+        destination: selectedDestination,
+        cargo_type: selectedCargoType,
+      });
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/routes/cargo-subtypes?${params}`
+      );
+
+      if (!response.ok) {
+        const data = await response
+          .json()
+          .catch(() => ({}));
+        throw new Error(
+          data?.detail ||
+            "Unable to load cargo subtypes for this route."
+        );
+      }
+
+      const data = await response.json();
+
+      setRouteCargoSubtypes(
+        data?.cargo_subtypes || []
+      );
+    } catch (err) {
+      console.error(
+        "Cargo subtypes loading error:",
+        err
+      );
+      setRouteCargoSubtypes([]);
+      setError(
+        err.message ||
+          "Unable to load cargo subtypes for this route."
+      );
+    } finally {
+      setSubtypesLoading(false);
+    }
+  };
+
+  // ==========================================
+  // ORIGIN CHANGE
+  // Resets destination, cargo type, cargo subtype
+  // and clears the previous analysis results.
+  // ==========================================
+
+  const handleOriginChange = (value) => {
+    setOrigin(value);
+    setDestination("");
+    setCargoType("");
+    setCargoSubtype("");
+    setRouteCargoSubtypes([]);
+    setResult(null);
+    setError("");
+  };
+
+  // ==========================================
+  // DESTINATION CHANGE
+  // Resets cargo type, cargo subtype and clears
+  // the previous analysis results.
+  // ==========================================
+
+  const handleDestinationChange = (value) => {
+    setDestination(value);
+    setCargoType("");
+    setCargoSubtype("");
+    setRouteCargoSubtypes([]);
+    setResult(null);
+    setError("");
+  };
+
+  // ==========================================
+  // CARGO TYPE CHANGE
+  // Loads the valid cargo subtypes for the
+  // selected origin + destination + cargo type.
   // ==========================================
 
   const handleCargoChange = (value) => {
     setCargoType(value);
     setCargoSubtype("");
+    setRouteCargoSubtypes([]);
+    setResult(null);
+    setError("");
+
+    if (value && origin && destination) {
+      fetchRouteSubtypes(
+        origin,
+        destination,
+        value
+      );
+    }
   };
 
   // ==========================================
@@ -181,7 +260,18 @@ function App() {
     }
 
     if (!cargoSubtype) {
-      setError("Please select a cargo subtype.");
+      if (
+        cargoType &&
+        routeCargoSubtypes.length === 0
+      ) {
+        setError(
+          "No cargo subtypes available for this route."
+        );
+      } else {
+        setError(
+          "Please select a cargo subtype."
+        );
+      }
       return;
     }
 
@@ -696,6 +786,38 @@ function App() {
   // ==========================================
 
   const renderSearch = () => {
+
+    // ------------------------------------------------
+    // CARGO SUBTYPE DEPENDENT DROPDOWN STATE
+    // ------------------------------------------------
+
+    const noSubtypes =
+      origin &&
+      destination &&
+      cargoType &&
+      !subtypesLoading &&
+      routeCargoSubtypes.length === 0;
+
+    const subtypeDisabled =
+      !origin ||
+      !destination ||
+      !cargoType ||
+      subtypesLoading ||
+      noSubtypes;
+
+    const subtypePlaceholder =
+      !origin
+        ? "Select origin first"
+        : !destination
+        ? "Select destination first"
+        : !cargoType
+        ? "Select cargo type first"
+        : subtypesLoading
+        ? "Loading cargo subtypes..."
+        : noSubtypes
+        ? "No cargo subtypes available"
+        : "Select cargo subtype";
+
     return (
       <section className="search-screen page-view">
 
@@ -746,7 +868,7 @@ function App() {
               <select
                 value={origin}
                 onChange={(e) =>
-                  setOrigin(e.target.value)
+                  handleOriginChange(e.target.value)
                 }
               >
 
@@ -778,7 +900,7 @@ function App() {
               <select
                 value={destination}
                 onChange={(e) =>
-                  setDestination(e.target.value)
+                  handleDestinationChange(e.target.value)
                 }
               >
 
@@ -838,7 +960,7 @@ function App() {
                   Select cargo type
                 </option>
 
-                {Object.keys(cargoSubtypes).map(
+                {Object.keys(cargoSubtypesByType).map(
                   (type) => (
                     <option
                       value={type}
@@ -866,28 +988,31 @@ function App() {
                 onChange={(e) =>
                   setCargoSubtype(e.target.value)
                 }
-                disabled={!cargoType}
+                disabled={subtypeDisabled}
               >
 
                 <option value="">
-                  {cargoType
-                    ? "Select cargo subtype"
-                    : "Select cargo type first"}
+                  {subtypePlaceholder}
                 </option>
 
-                {cargoType &&
-                  cargoSubtypes[cargoType]?.map(
-                    (subtype) => (
-                      <option
-                        value={subtype}
-                        key={subtype}
-                      >
-                        {subtype}
-                      </option>
-                    )
-                  )}
+                {routeCargoSubtypes.map(
+                  (subtype) => (
+                    <option
+                      value={subtype}
+                      key={subtype}
+                    >
+                      {subtype}
+                    </option>
+                  )
+                )}
 
               </select>
+
+              {noSubtypes && (
+                <div className="subtype-note">
+                  No cargo subtypes available for this route.
+                </div>
+              )}
 
             </div>
 
@@ -928,7 +1053,7 @@ function App() {
             <button
               type="submit"
               className="primary-button"
-              disabled={loading}
+              disabled={loading || subtypeDisabled}
             >
               {loading
                 ? "Analyzing..."

@@ -236,6 +236,7 @@ def analyze_route(
     origin,
     destination,
     cargo_type,
+    cargo_subtype,
     containers
 ):
 
@@ -318,6 +319,11 @@ def analyze_route(
             .strip()
         )
 
+        requested_subtype = (
+            str(cargo_subtype)
+            .strip()
+        )
+
         # =================================================
         # CONVERT FRONTEND CARGO TO CSV CARGO
         # =================================================
@@ -372,42 +378,34 @@ def analyze_route(
         ].copy()
 
         # =================================================
-        # IF CARGO ROUTES EXIST
-        # USE THEM
+        # USE ONLY CARGO-TYPE MATCHED ROUTES
+        # =================================================
+        # If no route carries this cargo type for the
+        # selected ports, the frame stays empty and the
+        # route-count check below reports no routes.
+
+        filtered = cargo_filtered
+
+        # =================================================
+        # FILTER CARGO SUBTYPE
+        # =================================================
+        # Strict filter using the selected cargo subtype.
+        # The dropdown is populated with real CSV subtypes,
+        # so there is no silent fallback to all cargo-type
+        # routes. If no route carries the selected subtype
+        # for these ports, the route-count check below
+        # raises an error.
         # =================================================
 
-        if not cargo_filtered.empty:
+        if requested_subtype:
 
-            filtered = cargo_filtered
-
-        # =================================================
-        # IF NO EXACT CARGO MATCH
-        # TRY CARGO SUBTYPE
-        # =================================================
-
-        else:
-
-            subtype_filtered = filtered[
+            filtered = filtered[
                 filtered["cargo_subtype"]
                 .str.lower()
                 .str.strip()
                 ==
-                requested_cargo.lower()
+                requested_subtype.lower()
             ].copy()
-
-            if not subtype_filtered.empty:
-
-                filtered = subtype_filtered
-
-            else:
-
-                # -------------------------------------------------
-                # IMPORTANT:
-                # If there is no exact cargo/subtype match,
-                # use all routes between the selected ports.
-                # -------------------------------------------------
-
-                filtered = filtered.copy()
 
         # =================================================
         # AVAILABLE ROUTES COUNT
@@ -419,7 +417,8 @@ def analyze_route(
 
             raise ValueError(
                 f"No routes available for "
-                f"{origin} to {destination}."
+                f"{requested_subtype} {mapped_cargo} "
+                f"from {origin} to {destination}."
             )
 
         # =================================================
@@ -760,6 +759,9 @@ def analyze_route(
 
             "cargo_type":
                 requested_cargo,
+
+            "cargo_subtype":
+                requested_subtype,
 
             "mapped_cargo_type":
                 mapped_cargo,
