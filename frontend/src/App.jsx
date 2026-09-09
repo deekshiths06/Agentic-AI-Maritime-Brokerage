@@ -23,6 +23,12 @@ function App() {
 
   const [user, setUser] = useState({});
 
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyActionLoading, setHistoryActionLoading] =
+    useState(false);
+
   // ==========================================
   // LOGIN CHECK
   // ==========================================
@@ -115,6 +121,223 @@ function App() {
     setActiveNav("Routes");
     setResult(null);
     setError("");
+  };
+
+  // ==========================================
+  // ROUTE HISTORY
+  // ==========================================
+
+  const resolveUser = () => {
+    if (user?.id || user?._id) {
+      return {
+        id: user.id || user._id || "",
+        contact:
+          user.contact || user.email || "",
+      };
+    }
+
+    try {
+      const saved =
+        localStorage.getItem("loggedInUser") ||
+        localStorage.getItem("user");
+
+      const parsed = saved ? JSON.parse(saved) : {};
+
+      return {
+        id: parsed?.id || parsed?._id || "",
+        contact:
+          parsed?.contact || parsed?.email || "",
+      };
+} catch {
+      return { id: "", contact: "" };
+    }
+  };
+
+  const formatAnalysisDate = (value) => {
+    if (!value) return "-";
+
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return String(value);
+
+    return date.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const loadRouteHistory = async () => {
+    const identity = resolveUser();
+
+    if (!identity.id) {
+      setHistory([]);
+      setHistoryError(
+        "Sign in is required to view route history."
+      );
+      setHistoryLoading(false);
+      return;
+    }
+
+    setHistoryLoading(true);
+    setHistoryError("");
+
+    try {
+      const params = new URLSearchParams({
+        user_id: identity.id,
+      });
+
+      if (identity.contact) {
+        params.append("contact", identity.contact);
+      }
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/routes/history?${params}`
+      );
+
+      if (!response.ok) {
+        const data = await response
+          .json()
+          .catch(() => ({}));
+        throw new Error(
+          data?.detail ||
+            "Unable to load route history."
+        );
+      }
+
+      const data = await response.json();
+
+      setHistory(data?.history || []);
+    } catch (err) {
+      console.error(
+        "Route history loading error:",
+        err
+      );
+      setHistory([]);
+      setHistoryError(
+        err.message ||
+          "Unable to load route history."
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleDeleteHistory = async (recordId) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this route history?"
+    );
+
+    if (!confirmed) return;
+
+    const identity = resolveUser();
+
+    if (!identity.id) {
+      setHistoryError(
+        "Sign in is required to manage route history."
+      );
+      return;
+    }
+
+    setHistoryActionLoading(true);
+    setHistoryError("");
+
+    try {
+      const params = new URLSearchParams({
+        user_id: identity.id,
+      });
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/routes/history/${recordId}?${params}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response
+          .json()
+          .catch(() => ({}));
+        throw new Error(
+          data?.detail ||
+            "Unable to delete the route history record."
+        );
+      }
+
+      setHistory((prev) =>
+        prev.filter(
+          (item) => item.record_id !== recordId
+        )
+      );
+    } catch (err) {
+      console.error(
+        "Route history delete error:",
+        err
+      );
+      setHistoryError(
+        err.message ||
+          "Unable to delete the route history record."
+      );
+    } finally {
+      setHistoryActionLoading(false);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to clear all route history?"
+    );
+
+    if (!confirmed) return;
+
+    const identity = resolveUser();
+
+    if (!identity.id) {
+      setHistoryError(
+        "Sign in is required to manage route history."
+      );
+      return;
+    }
+
+    setHistoryActionLoading(true);
+    setHistoryError("");
+
+    try {
+      const params = new URLSearchParams({
+        user_id: identity.id,
+      });
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/routes/history?${params}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response
+          .json()
+          .catch(() => ({}));
+        throw new Error(
+          data?.detail ||
+            "Unable to clear route history."
+        );
+      }
+
+      setHistory([]);
+    } catch (err) {
+      console.error(
+        "Route history clear error:",
+        err
+      );
+      setHistoryError(
+        err.message ||
+          "Unable to clear route history."
+      );
+    } finally {
+      setHistoryActionLoading(false);
+    }
   };
 
   // ==========================================
@@ -297,6 +520,8 @@ function App() {
             cargo_type: cargoType,
             cargo_subtype: cargoSubtype,
             containers: Number(containers),
+            user_id: resolveUser().id || "",
+            user_contact: resolveUser().contact || "",
           }),
         }
       );
@@ -564,6 +789,14 @@ function App() {
 
     if (item === "Routes") {
       goToSearch();
+      return;
+    }
+
+    if (item === "Route History") {
+      setActiveNav("Route History");
+      setView("history");
+      setError("");
+      loadRouteHistory();
       return;
     }
 
@@ -1483,6 +1716,286 @@ function App() {
   };
 
   // ==========================================
+  // ROUTE HISTORY PAGE
+  // ==========================================
+
+  const renderHistory = () => {
+    return (
+      <section className="results-screen page-view">
+
+        <div className="results-header history-header">
+
+          <div>
+
+            <button
+              className="back-button"
+              type="button"
+              onClick={goHome}
+            >
+              ← Back to Dashboard
+            </button>
+
+            <span className="section-label">
+              ROUTE HISTORY
+            </span>
+
+            <h1>
+              Route History
+            </h1>
+
+            <p>
+              All successfully analyzed maritime routes
+              are saved automatically for your review.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* ERROR */}
+
+        {historyError && (
+          <div className="error-message">
+            {historyError}
+          </div>
+        )}
+
+        {/* LOADING */}
+
+        {historyLoading && (
+          <div className="loading-message">
+
+            <span className="loading-spinner"></span>
+
+            Loading route history...
+
+          </div>
+        )}
+
+        {/* EMPTY HISTORY */}
+
+        {!historyLoading &&
+          !historyError &&
+          history.length === 0 && (
+            <div className="history-empty">
+
+              <div className="history-empty-icon">
+                ◈
+              </div>
+
+              <h3>
+                No route analysis history yet.
+              </h3>
+
+              <p>
+                Analyze a maritime route and it will
+                be saved here automatically.
+              </p>
+
+              <button
+                className="primary-button"
+                type="button"
+                onClick={goToSearch}
+              >
+                Analyze a Route →
+              </button>
+
+            </div>
+          )}
+
+        {/* HISTORY TABLE */}
+
+        {!historyLoading &&
+          !historyError &&
+          history.length > 0 && (
+            <div className="comparison-section history-section">
+
+              <div className="comparison-heading history-heading">
+
+                <div>
+
+                  <span className="section-label">
+                    SAVED ANALYSES
+                  </span>
+
+                  <h2>
+                    {history.length} route
+                    {history.length !== 1 ? "s" : ""}
+                  </h2>
+
+                </div>
+
+                <button
+                  className="danger-button"
+                  type="button"
+                  disabled={historyActionLoading}
+                  onClick={handleClearHistory}
+                >
+                  Clear All History
+                </button>
+
+              </div>
+
+              <div className="table-wrapper">
+
+                <table className="route-table history-table">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>
+                        Date & Time
+                      </th>
+
+                      <th>
+                        Origin
+                      </th>
+
+                      <th>
+                        Destination
+                      </th>
+
+                      <th>
+                        Cargo
+                      </th>
+
+                      <th>
+                        Subtype
+                      </th>
+
+                      <th>
+                        Containers
+                      </th>
+
+                      <th>
+                        Recommended Route
+                      </th>
+
+                      <th>
+                        Transit
+                      </th>
+
+                      <th>
+                        Distance
+                      </th>
+
+                      <th>
+                        Transshipments
+                      </th>
+
+                      <th>
+
+                      </th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {history.map((item) => (
+                      <tr
+                        key={item.record_id}
+                        className="history-row"
+                      >
+
+                        <td>
+                          <span className="history-date">
+                            {formatAnalysisDate(
+                              item.created_at
+                            )}
+                          </span>
+                        </td>
+
+                        <td>
+                          {item.origin || "-"}
+                        </td>
+
+                        <td>
+                          {item.destination || "-"}
+                        </td>
+
+                        <td>
+                          {item.cargo_type || "-"}
+                        </td>
+
+                        <td>
+                          {item.cargo_subtype || "-"}
+                        </td>
+
+                        <td>
+                          {item.containers ?? "-"}
+                        </td>
+
+                        <td>
+
+                          <div className="history-route-cell">
+
+                            <strong className="history-route-id">
+                              {item.route_id || "-"}
+                            </strong>
+
+                            <span className="history-route-name">
+                              {item.route_name ||
+                                "Recommended route"}
+                            </span>
+
+                          </div>
+
+                        </td>
+
+                        <td>
+                          {item.transit_days != null
+                            ? `${item.transit_days} days`
+                            : "-"}
+                        </td>
+
+                        <td>
+                          {item.distance_nm != null
+                            ? `${item.distance_nm} nm`
+                            : "-"}
+                        </td>
+
+                        <td>
+                          {item.transshipments ?? "-"}
+                        </td>
+
+                        <td>
+
+                          <button
+                            className="history-delete"
+                            type="button"
+                            disabled={historyActionLoading}
+                            onClick={() =>
+                              handleDeleteHistory(
+                                item.record_id
+                              )
+                            }
+                            aria-label="Delete route history record"
+                          >
+                            Delete
+                          </button>
+
+                        </td>
+
+                      </tr>
+                    ))}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            </div>
+          )}
+
+      </section>
+    );
+  };
+
+  // ==========================================
   // MAIN LAYOUT
   // ==========================================
 
@@ -1552,6 +2065,26 @@ function App() {
             </span>
 
             Route Intelligence
+
+          </button>
+
+          <button
+            className={
+              activeNav === "Route History"
+                ? "nav-item active"
+                : "nav-item"
+            }
+            type="button"
+            onClick={() =>
+              handleNavClick("Route History")
+            }
+          >
+
+            <span className="nav-icon">
+              ◇
+            </span>
+
+            Route History
 
           </button>
 
@@ -1693,6 +2226,9 @@ function App() {
 
           {view === "results" &&
             renderResults()}
+
+          {view === "history" &&
+            renderHistory()}
 
         </div>
 

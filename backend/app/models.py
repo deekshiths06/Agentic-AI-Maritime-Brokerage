@@ -31,3 +31,13 @@ class RouteRequest(BaseModel):
         ...,
         ge=1
     )
+
+    # -----------------------------------------------------
+    # OPTIONAL USER IDENTITY
+    # Sent by the frontend when a user is logged in.
+    # Used to associate route history with the user.
+    # -----------------------------------------------------
+
+    user_id: str = ""
+
+    user_contact: str = ""

@@ -6,3 +6,6 @@ venv/
 dist/
 build/
 .vscode/
+.env
+.env.*
+!.env.example

@@ -2,14 +2,20 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pymongo import MongoClient
+from bson import ObjectId
 import bcrypt
 import re
+import os
+import logging
 from datetime import datetime
 
 from dotenv import load_dotenv
 
 from app.models import RouteRequest
 from app.agents.route_agent import analyze_route
+
+
+logger = logging.getLogger("uvicorn.error")
 
 
 # ============================================================
@@ -49,14 +55,31 @@ app.add_middleware(
 # ============================================================
 # MONGODB
 # ============================================================
+# Database configuration comes from environment variables.
+# MONGO_URI      full MongoDB connection string
+# MONGO_DATABASE database name
+#
+# Local development falls back to a default local MongoDB.
+# Create a backend/.env file to override these values.
+# ============================================================
 
-client = MongoClient(
+MONGO_URI = os.getenv(
+    "MONGO_URI",
     "mongodb://127.0.0.1:27017/"
 )
 
-db = client["maritime_brokerage"]
+MONGO_DATABASE = os.getenv(
+    "MONGO_DATABASE",
+    "maritime_brokerage"
+)
+
+client = MongoClient(MONGO_URI)
+
+db = client[MONGO_DATABASE]
 
 users_collection = db["users"]
+
+route_history_collection = db["route_history"]
 
 
 # ============================================================
@@ -367,6 +390,128 @@ def login_user(request: LoginRequest):
 
 
 # ============================================================
+# ROUTE HISTORY HELPERS
+# ============================================================
+
+def _history_document(result, request):
+
+    recommended = (
+        result.get("recommended_route") or {}
+    )
+
+    return {
+        "user_id": request.user_id,
+        "user_contact": request.user_contact,
+        "origin": result.get(
+            "origin", request.origin
+        ),
+        "destination": result.get(
+            "destination", request.destination
+        ),
+        "cargo_type": result.get(
+            "cargo_type", request.cargo_type
+        ),
+        "cargo_subtype": result.get(
+            "cargo_subtype", request.cargo_subtype
+        ),
+        "containers": result.get(
+            "containers", request.containers
+        ),
+        "route_id": str(
+            recommended.get("route_id", "")
+        ).strip(),
+        "route_name": recommended.get(
+            "route", ""
+        ),
+        "transit_days": recommended.get(
+            "transit_days"
+        ),
+        "distance_nm": recommended.get(
+            "distance_nm"
+        ),
+        "transshipments": recommended.get(
+            "transshipments"
+        ),
+        "route_score": recommended.get(
+            "score"
+        ),
+        "total_available_routes": result.get(
+            "total_available_routes", 0
+        ),
+        "created_at": datetime.utcnow()
+    }
+
+
+def _save_route_history(result, request):
+
+    # Only save history when it can be associated
+    # with a logged-in user.
+    if not request.user_id:
+
+        return
+
+    document = _history_document(result, request)
+
+    route_history_collection.insert_one(document)
+
+
+def _serialize_history_record(record):
+
+    created_at = record.get("created_at")
+
+    return {
+        "record_id": str(record["_id"]),
+        "user_id": record.get("user_id", ""),
+        "user_contact": record.get(
+            "user_contact", ""
+        ),
+        "origin": record.get("origin", ""),
+        "destination": record.get(
+            "destination", ""
+        ),
+        "cargo_type": record.get(
+            "cargo_type", ""
+        ),
+        "cargo_subtype": record.get(
+            "cargo_subtype", ""
+        ),
+        "containers": record.get("containers"),
+        "route_id": record.get("route_id", ""),
+        "route_name": record.get(
+            "route_name", ""
+        ),
+        "transit_days": record.get("transit_days"),
+        "distance_nm": record.get("distance_nm"),
+        "transshipments": record.get(
+            "transshipments"
+        ),
+        "route_score": record.get("route_score"),
+        "total_available_routes": record.get(
+            "total_available_routes", 0
+        ),
+        "created_at": (
+            created_at.isoformat()
+            if created_at
+            else None
+        )
+    }
+
+
+def _require_user_id(user_id):
+
+    owner_id = (user_id or "").strip()
+
+    if not owner_id:
+
+        raise HTTPException(
+            status_code=400,
+            detail="User identification is required."
+        )
+
+    return owner_id
+
+
+# ============================================================
 # ROUTE LOCATIONS
 # ============================================================
 
@@ -534,7 +679,7 @@ def analyze_shipment(
 
     try:
 
-        return analyze_route(
+        result = analyze_route(
             request.origin,
             request.destination,
             request.cargo_type,
@@ -542,9 +687,119 @@ def analyze_shipment(
             request.containers
         )
 
+        # -------------------------------------------------
+        # SAVE ROUTE HISTORY
+        # Only successful analyses reach this point.
+        # A history failure never affects the response.
+        # -------------------------------------------------
+
+        try:
+
+            _save_route_history(result, request)
+
+        except Exception as history_error:
+
+            logger.warning(
+                "Could not save route history: %s",
+                history_error
+            )
+
+        return result
+
     except ValueError as error:
 
         raise HTTPException(
             status_code=400,
             detail=str(error)
         )
+
+
+# ============================================================
+# ROUTE HISTORY
+# ============================================================
+
+@app.get("/api/routes/history")
+def get_route_history(
+    user_id: str = "",
+    contact: str = ""
+):
+
+    owner_id = _require_user_id(user_id)
+
+    records = (
+        route_history_collection
+        .find(
+            {"user_id": owner_id}
+        )
+        .sort(
+            "created_at",
+            -1
+        )
+        .limit(200)
+    )
+
+    return {
+        "success": True,
+        "history": [
+            _serialize_history_record(record)
+            for record in records
+        ]
+    }
+
+
+@app.delete("/api/routes/history/{record_id}")
+def delete_route_history(
+    record_id: str,
+    user_id: str = ""
+):
+
+    owner_id = _require_user_id(user_id)
+
+    try:
+
+        record_object_id = ObjectId(record_id)
+
+    except Exception:
+
+        raise HTTPException(
+            status_code=400,
+            detail="The route history record is invalid."
+        )
+
+    # Only the record that belongs to the current user
+    # can be deleted. routes.csv is never touched.
+    result = route_history_collection.delete_one({
+        "_id": record_object_id,
+        "user_id": owner_id
+    })
+
+    if result.deleted_count == 0:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Route history record not found."
+        )
+
+    return {
+        "success": True,
+        "message": "Route history record deleted."
+    }
+
+
+@app.delete("/api/routes/history")
+def clear_route_history(
+    user_id: str = ""
+):
+
+    owner_id = _require_user_id(user_id)
+
+    # Only the current user's history is removed.
+    result = route_history_collection.delete_many({
+        "user_id": owner_id
+    })
+
+    return {
+        "success": True,
+        "message": "Route history cleared.",
+        "deleted_count": result.deleted_count
+    }
