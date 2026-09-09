@@ -44,8 +44,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://agentic-ai-maritime-brokerage-git-main-a-3fe4.vercel.app"
+        "http://127.0.0.1:5173"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -123,7 +122,7 @@ def validate_contact(contact: str) -> str:
 
     # Email validation
     is_email = re.match(
-        r"^[^\s@]+@[^\s@]+\.[^\s@]+$",
+       r"^[^\s@]+@[^\s@]+\.[^\s@]+$",
         contact
     )
 
@@ -311,9 +310,18 @@ def login_user(request: LoginRequest):
     # FIND USER
     # --------------------------------------------------------
 
-    user = users_collection.find_one({
-        "contact": contact
-    })
+    try:
+
+        user = users_collection.find_one({
+            "contact": contact
+        })
+
+    except Exception:
+
+        raise HTTPException(
+            status_code=503,
+            detail="Login service is temporarily unavailable. Please try again later."
+        )
 
 
     # --------------------------------------------------------

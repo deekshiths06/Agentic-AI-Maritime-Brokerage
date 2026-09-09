@@ -62,7 +62,7 @@ function App() {
     const loadLocations = async () => {
       try {
         const response = await fetch(
-          "https://agentic-ai-maritime-brokerage.onrender.com/api/routes/locations"
+          "http://127.0.0.1:8000/api/routes/locations"
         );
 
         if (!response.ok) {
@@ -81,7 +81,7 @@ function App() {
     const loadCargoSubtypes = async () => {
       try {
         const response = await fetch(
-          "https://agentic-ai-maritime-brokerage.onrender.com/api/routes/cargo-subtypes"
+          "http://127.0.0.1:8000/api/routes/cargo-subtypes"
         );
 
         if (!response.ok) {
@@ -193,7 +193,7 @@ function App() {
       }
 
       const response = await fetch(
-        `https://agentic-ai-maritime-brokerage.onrender.com/api/routes/history?${params}`
+        `http://127.0.0.1:8000/api/routes/history?${params}`
       );
 
       if (!response.ok) {
@@ -249,7 +249,7 @@ function App() {
       });
 
       const response = await fetch(
-        `https://agentic-ai-maritime-brokerage.onrender.com/api/routes/history/${recordId}?${params}`,
+        `http://127.0.0.1:8000/api/routes/history/${recordId}?${params}`,
         {
           method: "DELETE",
         }
@@ -309,7 +309,7 @@ function App() {
       });
 
       const response = await fetch(
-        `https://agentic-ai-maritime-brokerage.onrender.com/api/routes/history?${params}`,
+        `http://127.0.0.1:8000/api/routes/history?${params}`,
         {
           method: "DELETE",
         }
@@ -371,7 +371,7 @@ function App() {
       });
 
       const response = await fetch(
-        `https://agentic-ai-maritime-brokerage.onrender.com/api/routes/cargo-subtypes?${params}`
+        `http://127.0.0.1:8000/api/routes/cargo-subtypes?${params}`
       );
 
       if (!response.ok) {
@@ -507,7 +507,7 @@ function App() {
       setLoading(true);
 
       const response = await fetch(
-        "https://agentic-ai-maritime-brokerage.onrender.com/api/routes/analyze",
+        "http://127.0.0.1:8000/api/routes/analyze",
         {
           method: "POST",
           headers: {
