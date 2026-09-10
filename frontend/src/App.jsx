@@ -1,5 +1,65 @@
 import React, { useEffect, useRef, useState } from "react";
 
+const howToSteps = [
+  {
+    icon: "◉",
+    title: "Login to Maritime AI",
+    description:
+      "Login using your registered email or mobile number and password to access the dashboard.",
+  },
+  {
+    icon: "⇢",
+    title: "Select Your Route",
+    description:
+      "Go to Route Intelligence and select the origin and destination for your shipment.",
+  },
+  {
+    icon: "▣",
+    title: "Choose Cargo Details",
+    description:
+      "Select the cargo type and the available cargo subtype for your shipment.",
+  },
+  {
+    icon: "▤",
+    title: "Enter Container Quantity",
+    description:
+      "Enter the number of containers required for the shipment.",
+  },
+  {
+    icon: "⌖",
+    title: "Analyze Route",
+    description:
+      "Click Analyze Route. The Route Agent evaluates available routes and recommends the most suitable route.",
+  },
+  {
+    icon: "$",
+    title: "Generate Quotation",
+    description:
+      "Generate the pricing and margin quotation using the Pricing Agent and Margin Agent.",
+  },
+  {
+    icon: "%",
+    title: "Review Pricing & Margin",
+    description:
+      "Review operating cost, demand-adjusted cost, selling price, expected profit, and achieved margin.",
+  },
+  {
+    icon: "◇",
+    title: "View Route History",
+    description:
+      "Open Route History to review your previous route analyses and generated quotations.",
+  },
+];
+
+const howToWorkflow = [
+  { icon: "◉", label: "Login" },
+  { icon: "⇢", label: "Route Intelligence" },
+  { icon: "⌖", label: "Analyze Route" },
+  { icon: "%", label: "Pricing & Margin" },
+  { icon: "$", label: "Generate Quotation" },
+  { icon: "◇", label: "Route History" },
+];
+
 function App() {
   const [view, setView] = useState("home");
   const [activeNav, setActiveNav] = useState("Dashboard");
@@ -28,6 +88,11 @@ function App() {
   const [historyError, setHistoryError] = useState("");
   const [historyActionLoading, setHistoryActionLoading] =
     useState(false);
+
+  const [quotation, setQuotation] = useState(null);
+  const [quotationLoading, setQuotationLoading] =
+    useState(false);
+  const [quotationError, setQuotationError] = useState("");
 
   // ==========================================
   // LOGIN CHECK
@@ -568,6 +633,74 @@ function App() {
   };
 
   // ==========================================
+  // GENERATE QUOTATION
+  // Calls the Pricing Agent and Margin Agent
+  // pipeline to produce a dynamic quotation.
+  // ==========================================
+
+  const handleGenerateQuotation = async () => {
+    setQuotationError("");
+    setQuotation(null);
+
+    if (!origin || !destination || !cargoType || !cargoSubtype) {
+      setQuotationError(
+        "Shipment details are required to generate a quotation."
+      );
+      return;
+    }
+
+    try {
+      setQuotationLoading(true);
+
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/quotations/generate",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            origin,
+            destination,
+            cargo_type: cargoType,
+            cargo_subtype: cargoSubtype,
+            containers: Number(containers),
+            user_id: resolveUser().id || "",
+            user_contact: resolveUser().contact || "",
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Unable to generate quotation."
+        );
+      }
+
+      if (data?.status === "error") {
+        throw new Error(
+          data?.message ||
+            "Quotation generation failed."
+        );
+      }
+
+      setQuotation(data);
+    } catch (err) {
+      console.error("Quotation generation error:", err);
+      setQuotationError(
+        err.message ||
+          "Unable to connect to the quotation service."
+      );
+    } finally {
+      setQuotationLoading(false);
+    }
+  };
+
+  // ==========================================
   // LOGOUT
   // ==========================================
 
@@ -852,17 +985,15 @@ function App() {
 
     if (item === "Quotation") {
       setActiveNav("Quotation");
-      setView("home");
+      setView("quotation");
+      setError("");
+      return;
+    }
 
-      window.setTimeout(() => {
-        document
-          .getElementById("dashboard-quotation")
-          ?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-      }, 80);
-
+    if (item === "How to Use") {
+      setActiveNav("How to Use");
+      setView("howto");
+      setError("");
       return;
     }
 
@@ -1679,6 +1810,346 @@ function App() {
           </div>
         )}
 
+        {/* GET QUOTATION BUTTON */}
+
+        {!quotation && !quotationLoading && (
+          <div className="quotation-cta-section result-animate result-animate-2">
+            <button
+              className="quotation-cta-button"
+              type="button"
+              onClick={handleGenerateQuotation}
+            >
+              <div className="quotation-cta-icon">
+                $
+              </div>
+              <div className="quotation-cta-text">
+                <strong>
+                  Generate Pricing & Margin Quotation
+                </strong>
+                <span>
+                  Run Pricing Agent and Margin Agent to
+                  calculate the optimal selling price for
+                  this shipment
+                </span>
+              </div>
+              <div className="quotation-cta-arrow">
+                →
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* QUOTATION LOADING */}
+
+        {quotationLoading && (
+          <div className="quotation-loading result-animate result-animate-2">
+            <div className="ai-agent" aria-hidden="true">
+              <span className="ai-agent-core"></span>
+              <span className="ai-agent-ring ai-ring-1"></span>
+              <span className="ai-agent-ring ai-ring-2"></span>
+              <span className="ai-agent-scan"></span>
+            </div>
+            <div className="ai-loading-text">
+              <strong>
+                Pricing Agent & Margin Agent calculating
+              </strong>
+              <span className="ai-loading-dots">
+                <i></i>
+                <i></i>
+                <i></i>
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* QUOTATION ERROR */}
+
+        {quotationError && (
+          <div className="error-message">
+            {quotationError}
+          </div>
+        )}
+
+        {/* PRICING INTELLIGENCE */}
+
+        {quotation && quotation.pricing && (
+          <div className="quotation-section result-animate result-animate-2">
+            <div className="quotation-section-header">
+              <div className="quotation-section-icon quotation-icon-pricing">
+                $
+              </div>
+              <div>
+                <span className="section-label">
+                  PRICING INTELLIGENCE
+                </span>
+                <h2>
+                  Cost Breakdown
+                </h2>
+                <p>
+                  Calculated by the Pricing Agent based on
+                  route-specific pricing data
+                </p>
+              </div>
+            </div>
+
+            <div className="quotation-grid">
+
+              <div className="quotation-row">
+                <span className="quotation-label">
+                  Base Freight
+                </span>
+                <span className="quotation-value">
+                  ${quotation.pricing.base_freight_usd?.toLocaleString(
+                    undefined,
+                    { minimumFractionDigits: 2 }
+                  ) || "-"}
+                </span>
+              </div>
+
+              <div className="quotation-row">
+                <span className="quotation-label">
+                  Fuel Surcharge
+                </span>
+                <span className="quotation-value quotation-value-secondary">
+                  +${quotation.pricing.fuel_surcharge_usd?.toLocaleString(
+                    undefined,
+                    { minimumFractionDigits: 2 }
+                  ) || "-"}
+                </span>
+              </div>
+
+              <div className="quotation-row">
+                <span className="quotation-label">
+                  Port Charge
+                </span>
+                <span className="quotation-value quotation-value-secondary">
+                  +${quotation.pricing.port_charge_usd?.toLocaleString(
+                    undefined,
+                    { minimumFractionDigits: 2 }
+                  ) || "-"}
+                </span>
+              </div>
+
+              <div className="quotation-row">
+                <span className="quotation-label">
+                  Risk Surcharge
+                </span>
+                <span className="quotation-value quotation-value-secondary">
+                  +${quotation.pricing.risk_surcharge_usd?.toLocaleString(
+                    undefined,
+                    { minimumFractionDigits: 2 }
+                  ) || "-"}
+                </span>
+              </div>
+
+              <div className="quotation-row quotation-row-divider">
+                <span className="quotation-label">
+                  Operating Cost
+                </span>
+                <span className="quotation-value quotation-value-bold">
+                  ${quotation.pricing.operating_cost_usd?.toLocaleString(
+                    undefined,
+                    { minimumFractionDigits: 2 }
+                  ) || "-"}
+                </span>
+              </div>
+
+              <div className="quotation-row">
+                <span className="quotation-label">
+                  Demand Factor
+                </span>
+                <span className="quotation-value">
+                  {quotation.pricing.demand_factor?.toFixed(2) || "-"}
+                </span>
+              </div>
+
+              <div className="quotation-row quotation-row-highlight">
+                <span className="quotation-label">
+                  Demand Adjusted Cost
+                </span>
+                <span className="quotation-value quotation-value-primary">
+                  ${quotation.pricing.demand_adjusted_cost_usd?.toLocaleString(
+                    undefined,
+                    { minimumFractionDigits: 2 }
+                  ) || "-"}
+                </span>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* MARGIN OPTIMIZATION */}
+
+        {quotation && quotation.margin && (
+          <div className="quotation-section result-animate result-animate-2">
+            <div className="quotation-section-header">
+              <div className="quotation-section-icon quotation-icon-margin">
+                %
+              </div>
+              <div>
+                <span className="section-label">
+                  MARGIN OPTIMIZATION
+                </span>
+                <h2>
+                  Profitability Analysis
+                </h2>
+                <p>
+                  Calculated by the Margin Agent using
+                  target margin requirements
+                </p>
+              </div>
+            </div>
+
+            <div className="quotation-grid">
+
+              <div className="quotation-row">
+                <span className="quotation-label">
+                  Target Margin
+                </span>
+                <span className="quotation-value">
+                  {quotation.margin.target_margin_percent?.toFixed(1) || "-"}%
+                </span>
+              </div>
+
+              <div className="quotation-row quotation-row-highlight">
+                <span className="quotation-label">
+                  Recommended Selling Price
+                </span>
+                <span className="quotation-value quotation-value-success">
+                  ${quotation.margin.recommended_selling_price_usd?.toLocaleString(
+                    undefined,
+                    { minimumFractionDigits: 2 }
+                  ) || "-"}
+                </span>
+              </div>
+
+              <div className="quotation-row">
+                <span className="quotation-label">
+                  Expected Profit
+                </span>
+                <span className="quotation-value quotation-value-profit">
+                  ${quotation.margin.expected_profit_usd?.toLocaleString(
+                    undefined,
+                    { minimumFractionDigits: 2 }
+                  ) || "-"}
+                </span>
+              </div>
+
+              <div className="quotation-row">
+                <span className="quotation-label">
+                  Achieved Margin
+                </span>
+                <span className="quotation-value">
+                  {quotation.margin.achieved_margin_percent?.toFixed(1) || "-"}%
+                </span>
+              </div>
+
+            </div>
+
+            {/* FORMULA EXPLANATION */}
+
+            <div className="quotation-formula-note">
+              <span className="quotation-formula-icon">
+                i
+              </span>
+              <span>
+                Margin = Profit / Selling Price x 100.
+                Selling Price = (Cost x 100) / (100 - Margin).
+                The Margin Agent ensures the target margin is
+                achieved in the final quotation.
+              </span>
+            </div>
+
+          </div>
+        )}
+
+        {/* ALTERNATIVE ROUTES WITH PRICING */}
+
+        {quotation &&
+          quotation.alternative_routes &&
+          quotation.alternative_routes.length > 0 && (
+          <div className="comparison-section result-animate result-animate-2">
+            <div className="comparison-heading">
+              <div>
+                <span className="section-label">
+                  ALTERNATIVE ROUTES
+                </span>
+                <h2>
+                  Route Comparison with Pricing
+                </h2>
+              </div>
+              <span className="route-count">
+                {quotation.alternative_routes.length} alternatives
+              </span>
+            </div>
+
+            <div className="table-wrapper">
+              <table className="route-table">
+                <thead>
+                  <tr>
+                    <th>Route</th>
+                    <th>Route ID</th>
+                    <th>Transit</th>
+                    <th>Distance</th>
+                    <th>Base Freight</th>
+                    <th>Operating Cost</th>
+                    <th>Demand Adj. Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quotation.alternative_routes.map(
+                    (alt, index) => (
+                      <tr key={alt.route_id || index}>
+                        <td>
+                          <div className="route-name-cell">
+                            {alt.route_name || "-"}
+                          </div>
+                        </td>
+                        <td>{alt.route_id || "-"}</td>
+                        <td>
+                          {alt.transit_days != null
+                            ? `${alt.transit_days} days`
+                            : "-"}
+                        </td>
+                        <td>
+                          {alt.distance_nm != null
+                            ? `${alt.distance_nm} nm`
+                            : "-"}
+                        </td>
+                        <td>
+                          {alt.base_freight_usd != null
+                            ? `$${alt.base_freight_usd.toLocaleString(
+                                undefined,
+                                { minimumFractionDigits: 2 }
+                              )}`
+                            : "-"}
+                        </td>
+                        <td>
+                          {alt.operating_cost_usd != null
+                            ? `$${alt.operating_cost_usd.toLocaleString(
+                                undefined,
+                                { minimumFractionDigits: 2 }
+                              )}`
+                            : "-"}
+                        </td>
+                        <td>
+                          {alt.demand_adjusted_cost_usd != null
+                            ? `$${alt.demand_adjusted_cost_usd.toLocaleString(
+                                undefined,
+                                { minimumFractionDigits: 2 }
+                              )}`
+                            : "-"}
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* ROUTE COMPARISON */}
 
         <div className="comparison-section result-animate result-animate-2">
@@ -2161,6 +2632,829 @@ function App() {
   };
 
   // ==========================================
+  // QUOTATION PAGE
+  // ==========================================
+
+  const renderQuotation = () => {
+    const hasQuotation = !!(
+      quotation && quotation.status === "success"
+    );
+
+    const recommended = quotation?.route || null;
+
+    const comparisonRows = [];
+
+    if (recommended) {
+      comparisonRows.push(recommended);
+    }
+
+    (quotation?.alternative_routes || []).forEach(
+      (alt) => comparisonRows.push(alt)
+    );
+
+    const fmtMoney = (value, plus) => {
+      if (
+        value === undefined ||
+        value === null ||
+        isNaN(Number(value))
+      ) {
+        return "-";
+      }
+
+      const formatted = Number(value).toLocaleString(
+        undefined,
+        { minimumFractionDigits: 2 }
+      );
+
+      return `${plus ? "+$" : "$"}${formatted}`;
+    };
+
+    return (
+      <section className="results-screen page-view">
+
+        <div className="results-header">
+
+          <div>
+
+            <span className="section-label">
+              QUOTATION
+            </span>
+
+            <h1>
+              Pricing & Margin Quotation
+            </h1>
+
+            <p>
+              Review the pricing intelligence, margin
+              optimization and route comparison for your
+              generated quotation.
+            </p>
+
+          </div>
+
+        </div>
+
+        {!hasQuotation ? (
+
+          /* EMPTY STATE */
+
+          <div className="history-empty quotation-empty">
+
+            <div className="history-empty-icon">
+              ❝
+            </div>
+
+            <h3>
+              No quotation generated yet
+            </h3>
+
+            <p>
+              Analyze a route and generate a pricing &
+              margin quotation to view it here.
+            </p>
+
+            <button
+              className="primary-button"
+              type="button"
+              onClick={goToSearch}
+            >
+              Go to Route Intelligence →
+            </button>
+
+          </div>
+
+        ) : (
+          <>
+
+            {/* SHIPMENT SUMMARY */}
+
+            <div className="shipment-summary quotation-shipment-summary">
+
+              <div className="summary-item">
+
+                <span>
+                  Origin
+                </span>
+
+                <strong>
+                  {quotation.shipment?.origin || "-"}
+                </strong>
+
+              </div>
+
+              <div className="summary-item">
+
+                <span>
+                  Destination
+                </span>
+
+                <strong>
+                  {quotation.shipment?.destination || "-"}
+                </strong>
+
+              </div>
+
+              <div className="summary-item">
+
+                <span>
+                  Cargo
+                </span>
+
+                <strong>
+                  {quotation.shipment?.cargo_type || "-"}
+                </strong>
+
+              </div>
+
+              <div className="summary-item">
+
+                <span>
+                  Subtype
+                </span>
+
+                <strong>
+                  {quotation.shipment?.cargo_subtype || "-"}
+                </strong>
+
+              </div>
+
+              <div className="summary-item">
+
+                <span>
+                  Containers
+                </span>
+
+                <strong>
+                  {quotation.shipment?.containers ?? "-"}
+                </strong>
+
+              </div>
+
+            </div>
+
+            {/* ROUTE SUMMARY */}
+
+            <div className="quotation-section result-animate result-animate-2">
+
+              <div className="quotation-section-header">
+
+                <div className="quotation-section-icon quotation-icon-route">
+                  ⇢
+                </div>
+
+                <div>
+
+                  <span className="section-label">
+                    ROUTE SUMMARY
+                  </span>
+
+                  <h2>
+                    {getRouteName(recommended)}
+                  </h2>
+
+                  <p>
+                    Recommended route selected for this shipment
+                  </p>
+
+                </div>
+
+              </div>
+
+              <div className="route-summary-grid">
+
+                <div className="result-detail">
+
+                  <span>
+                    Route ID
+                  </span>
+
+                  <strong>
+                    {getRouteNumber(recommended)}
+                  </strong>
+
+                </div>
+
+                <div className="result-detail">
+
+                  <span>
+                    Transit Time
+                  </span>
+
+                  <strong>
+                    {getTransit(recommended)}
+                  </strong>
+
+                </div>
+
+                <div className="result-detail">
+
+                  <span>
+                    Distance
+                  </span>
+
+                  <strong>
+                    {getDistance(recommended)}
+                  </strong>
+
+                </div>
+
+                <div className="result-detail">
+
+                  <span>
+                    Transshipments
+                  </span>
+
+                  <strong>
+                    {getTransshipments(recommended)}
+                  </strong>
+
+                </div>
+
+                <div className="result-detail">
+
+                  <span>
+                    Route Score
+                  </span>
+
+                  <strong>
+                    {getScore(recommended)}
+                  </strong>
+
+                </div>
+
+              </div>
+
+              <div className="route-status status-recommended">
+                Recommended Route
+              </div>
+
+            </div>
+
+            {/* PRICING INTELLIGENCE */}
+
+            {quotation.pricing && (
+              <div className="quotation-section result-animate result-animate-2">
+
+                <div className="quotation-section-header">
+
+                  <div className="quotation-section-icon quotation-icon-pricing">
+                    $
+                  </div>
+
+                  <div>
+
+                    <span className="section-label">
+                      PRICING INTELLIGENCE
+                    </span>
+
+                    <h2>
+                      Cost Breakdown
+                    </h2>
+
+                    <p>
+                      Calculated by the Pricing Agent based on
+                      route-specific pricing data
+                    </p>
+
+                  </div>
+
+                </div>
+
+                <div className="quotation-grid">
+
+                  <div className="quotation-row">
+
+                    <span className="quotation-label">
+                      Base Freight
+                    </span>
+
+                    <span className="quotation-value">
+                      {fmtMoney(
+                        quotation.pricing.base_freight_usd
+                      )}
+                    </span>
+
+                  </div>
+
+                  <div className="quotation-row">
+
+                    <span className="quotation-label">
+                      Fuel Surcharge
+                    </span>
+
+                    <span className="quotation-value quotation-value-secondary">
+                      {fmtMoney(
+                        quotation.pricing.fuel_surcharge_usd,
+                        true
+                      )}
+                    </span>
+
+                  </div>
+
+                  <div className="quotation-row">
+
+                    <span className="quotation-label">
+                      Port Charge
+                    </span>
+
+                    <span className="quotation-value quotation-value-secondary">
+                      {fmtMoney(
+                        quotation.pricing.port_charge_usd,
+                        true
+                      )}
+                    </span>
+
+                  </div>
+
+                  <div className="quotation-row">
+
+                    <span className="quotation-label">
+                      Risk Surcharge
+                    </span>
+
+                    <span className="quotation-value quotation-value-secondary">
+                      {fmtMoney(
+                        quotation.pricing.risk_surcharge_usd,
+                        true
+                      )}
+                    </span>
+
+                  </div>
+
+                  <div className="quotation-row quotation-row-divider">
+
+                    <span className="quotation-label">
+                      Operating Cost
+                    </span>
+
+                    <span className="quotation-value quotation-value-bold">
+                      {fmtMoney(
+                        quotation.pricing.operating_cost_usd
+                      )}
+                    </span>
+
+                  </div>
+
+                  <div className="quotation-row">
+
+                    <span className="quotation-label">
+                      Demand Factor
+                    </span>
+
+                    <span className="quotation-value">
+                      {quotation.pricing.demand_factor != null
+                        ? Number(
+                            quotation.pricing.demand_factor
+                          ).toFixed(2)
+                        : "-"}
+                    </span>
+
+                  </div>
+
+                  <div className="quotation-row quotation-row-highlight">
+
+                    <span className="quotation-label">
+                      Demand Adjusted Cost
+                    </span>
+
+                    <span className="quotation-value quotation-value-primary">
+                      {fmtMoney(
+                        quotation.pricing.demand_adjusted_cost_usd
+                      )}
+                    </span>
+
+                  </div>
+
+                </div>
+
+              </div>
+            )}
+
+            {/* MARGIN OPTIMIZATION */}
+
+            {quotation.margin && (
+              <div className="quotation-section result-animate result-animate-2">
+
+                <div className="quotation-section-header">
+
+                  <div className="quotation-section-icon quotation-icon-margin">
+                    %
+                  </div>
+
+                  <div>
+
+                    <span className="section-label">
+                      MARGIN OPTIMIZATION
+                    </span>
+
+                    <h2>
+                      Profitability Analysis
+                    </h2>
+
+                    <p>
+                      Calculated by the Margin Agent using
+                      target margin requirements
+                    </p>
+
+                  </div>
+
+                </div>
+
+                <div className="quotation-grid">
+
+                  <div className="quotation-row">
+
+                    <span className="quotation-label">
+                      Target Margin
+                    </span>
+
+                    <span className="quotation-value">
+                      {quotation.margin.target_margin_percent != null
+                        ? `${Number(
+                            quotation.margin.target_margin_percent
+                          ).toFixed(1)}%`
+                        : "-"}
+                    </span>
+
+                  </div>
+
+                  <div className="quotation-row quotation-row-highlight">
+
+                    <span className="quotation-label">
+                      Recommended Selling Price
+                    </span>
+
+                    <span className="quotation-value quotation-value-success">
+                      {fmtMoney(
+                        quotation.margin.recommended_selling_price_usd
+                      )}
+                    </span>
+
+                  </div>
+
+                  <div className="quotation-row">
+
+                    <span className="quotation-label">
+                      Expected Profit
+                    </span>
+
+                    <span className="quotation-value quotation-value-profit">
+                      {fmtMoney(
+                        quotation.margin.expected_profit_usd
+                      )}
+                    </span>
+
+                  </div>
+
+                  <div className="quotation-row">
+
+                    <span className="quotation-label">
+                      Achieved Margin
+                    </span>
+
+                    <span className="quotation-value">
+                      {quotation.margin.achieved_margin_percent != null
+                        ? `${Number(
+                            quotation.margin.achieved_margin_percent
+                          ).toFixed(1)}%`
+                        : "-"}
+                    </span>
+
+                  </div>
+
+                </div>
+
+                {/* FORMULA EXPLANATION */}
+
+                <div className="quotation-formula-note">
+
+                  <span className="quotation-formula-icon">
+                    i
+                  </span>
+
+                  <span>
+                    Margin = Profit / Selling Price x 100.
+                    Selling Price = (Cost x 100) / (100 - Margin).
+                    The Margin Agent ensures the target margin is
+                    achieved in the final quotation.
+                  </span>
+
+                </div>
+
+              </div>
+            )}
+
+            {/* ROUTE COMPARISON */}
+
+            <div className="comparison-section result-animate result-animate-2">
+
+              <div className="comparison-heading">
+
+                <div>
+
+                  <span className="section-label">
+                    ROUTE COMPARISON
+                  </span>
+
+                  <h2>
+                    Available Routes
+                  </h2>
+
+                </div>
+
+                <span className="route-count">
+                  {comparisonRows.length} route
+                  {comparisonRows.length !== 1
+                    ? "s"
+                    : ""}
+                </span>
+
+              </div>
+
+              {comparisonRows.length > 0 ? (
+                <div className="table-wrapper">
+
+                  <table className="route-table quotation-route-table">
+
+                    <thead>
+
+                      <tr>
+
+                        <th>
+                          Route
+                        </th>
+
+                        <th>
+                          Route ID
+                        </th>
+
+                        <th>
+                          Transit
+                        </th>
+
+                        <th>
+                          Distance
+                        </th>
+
+                        <th>
+                          Transshipments
+                        </th>
+
+                        <th>
+                          Score
+                        </th>
+
+                        <th>
+                          Status
+                        </th>
+
+                      </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                      {comparisonRows.map(
+                        (route, index) => {
+
+                          const isRecommended =
+                            recommended &&
+                            getRawRouteNumber(route) ===
+                              getRawRouteNumber(
+                                recommended
+                              );
+
+                          return (
+                            <tr
+                              key={
+                                getRawRouteNumber(route) !== "-"
+                                  ? getRawRouteNumber(route)
+                                  : index
+                              }
+                              className={
+                                isRecommended
+                                  ? "recommended-row"
+                                  : ""
+                              }
+                            >
+
+                              <td>
+
+                                <div className="route-name-cell">
+                                  {getRouteName(route)}
+                                </div>
+
+                              </td>
+
+                              <td>
+                                {getRouteNumber(route)}
+                              </td>
+
+                              <td>
+                                {getTransit(route)}
+                              </td>
+
+                              <td>
+                                {getDistance(route)}
+                              </td>
+
+                              <td>
+                                {getTransshipments(route)}
+                              </td>
+
+                              <td>
+
+                                <strong>
+                                  {getScore(route)}
+                                </strong>
+
+                              </td>
+
+                              <td>
+
+                                {isRecommended ? (
+                                  <span className="route-status recommended">
+                                    Recommended
+                                  </span>
+                                ) : (
+                                  <span className="route-status">
+                                    Alternative
+                                  </span>
+                                )}
+
+                              </td>
+
+                            </tr>
+                          );
+                        }
+                      )}
+
+                    </tbody>
+
+                  </table>
+
+                </div>
+              ) : (
+                <div className="no-routes">
+                  No route comparison data available.
+                </div>
+              )}
+
+            </div>
+
+            {/* BOTTOM ACTIONS */}
+
+            <div className="results-actions quotation-results-actions">
+
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={goHome}
+              >
+                Back to Dashboard
+              </button>
+
+              <button
+                className="primary-button"
+                type="button"
+                onClick={goToSearch}
+              >
+                New Route Search →
+              </button>
+
+            </div>
+
+          </>
+        )}
+
+      </section>
+    );
+  };
+
+  // ==========================================
+  // HOW TO USE PAGE
+  // ==========================================
+
+  const renderHowToUse = () => {
+    return (
+      <section className="howto-screen page-view">
+
+        <div className="howto-header">
+
+          <div>
+
+            <span className="section-label">
+              HELP & SUPPORT
+            </span>
+
+            <h1>
+              How to Use Maritime AI
+            </h1>
+
+            <p>
+              Follow these simple steps to analyze routes and
+              generate intelligent freight quotations.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* STEP CARDS */}
+
+        <div className="howto-grid">
+
+          {howToSteps.map((step, index) => (
+            <article
+              className="howto-card"
+              key={step.title}
+            >
+
+              <span className="howto-step-number">
+                {index + 1}
+              </span>
+
+              <div
+                className="howto-card-icon"
+                aria-hidden="true"
+              >
+                {step.icon}
+              </div>
+
+              <h3>
+                {step.title}
+              </h3>
+
+              <p>
+                {step.description}
+              </p>
+
+            </article>
+          ))}
+
+        </div>
+
+        {/* QUICK WORKFLOW */}
+
+        <div className="howto-workflow">
+
+          <div className="howto-workflow-heading">
+
+            <div>
+
+              <span className="section-label">
+                QUICK WORKFLOW
+              </span>
+
+              <h2>
+                Your Journey at a Glance
+              </h2>
+
+            </div>
+
+          </div>
+
+          <div className="howto-flow">
+
+            {howToWorkflow.map((step, index) => (
+              <React.Fragment key={step.label}>
+
+                {index > 0 && (
+                  <div
+                    className="howto-flow-arrow"
+                    aria-hidden="true"
+                  >
+                    ↓
+                  </div>
+                )}
+
+                <div className="howto-flow-step">
+
+                  <span
+                    className="howto-flow-icon"
+                    aria-hidden="true"
+                  >
+                    {step.icon}
+                  </span>
+
+                  <strong>
+                    {step.label}
+                  </strong>
+
+                </div>
+
+              </React.Fragment>
+            ))}
+
+          </div>
+
+        </div>
+
+      </section>
+    );
+  };
+
+  // ==========================================
   // MAIN LAYOUT
   // ==========================================
 
@@ -2310,6 +3604,26 @@ function App() {
             </span>
 
             Quotation
+
+          </button>
+
+          <button
+            className={
+              activeNav === "How to Use"
+                ? "nav-item active"
+                : "nav-item"
+            }
+            type="button"
+            onClick={() =>
+              handleNavClick("How to Use")
+            }
+          >
+
+            <span className="nav-icon">
+              ⓘ
+            </span>
+
+            How to Use
 
           </button>
 
@@ -2487,6 +3801,12 @@ function App() {
 
           {view === "history" &&
             renderHistory()}
+
+          {view === "quotation" &&
+            renderQuotation()}
+
+          {view === "howto" &&
+            renderHowToUse()}
 
         </div>
 

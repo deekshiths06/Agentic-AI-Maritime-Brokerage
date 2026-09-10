@@ -13,6 +13,9 @@ from dotenv import load_dotenv
 
 from app.models import RouteRequest
 from app.agents.route_agent import analyze_route
+from app.agents.quotation_service import (
+    generate_quotation
+)
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -180,7 +183,8 @@ def home():
     return {
         "message": "Agentic Maritime Brokerage API is running",
         "project": "Maritime Freight Quotation Platform",
-        "milestone": "Milestone 1 - Route Intelligence"
+        "milestone": "Milestone 2 - Pricing Intelligence "
+                     "& Margin Optimization"
     }
 
 
@@ -402,13 +406,13 @@ def login_user(request: LoginRequest):
 # ROUTE HISTORY HELPERS
 # ============================================================
 
-def _history_document(result, request):
+def _history_document(result, request, quotation=None):
 
     recommended = (
         result.get("recommended_route") or {}
     )
 
-    return {
+    doc = {
         "user_id": request.user_id,
         "user_contact": request.user_contact,
         "origin": result.get(
@@ -450,8 +454,39 @@ def _history_document(result, request):
         "created_at": datetime.utcnow()
     }
 
+    if quotation:
+        pricing = quotation.get("pricing", {})
+        margin = quotation.get("margin", {})
+        doc["pricing"] = {
+            "base_freight_usd": pricing.get(
+                "base_freight_usd"
+            ),
+            "operating_cost_usd": pricing.get(
+                "operating_cost_usd"
+            ),
+            "demand_adjusted_cost_usd": pricing.get(
+                "demand_adjusted_cost_usd"
+            ),
+            "demand_factor": pricing.get(
+                "demand_factor"
+            ),
+        }
+        doc["margin"] = {
+            "target_margin_percent": margin.get(
+                "target_margin_percent"
+            ),
+            "recommended_selling_price_usd": margin.get(
+                "recommended_selling_price_usd"
+            ),
+            "expected_profit_usd": margin.get(
+                "expected_profit_usd"
+            ),
+        }
 
-def _save_route_history(result, request):
+    return doc
+
+
+def _save_route_history(result, request, quotation=None):
 
     # Only save history when it can be associated
     # with a logged-in user.
@@ -459,7 +494,9 @@ def _save_route_history(result, request):
 
         return
 
-    document = _history_document(result, request)
+    document = _history_document(
+        result, request, quotation
+    )
 
     route_history_collection.insert_one(document)
 
@@ -498,6 +535,8 @@ def _serialize_history_record(record):
         "total_available_routes": record.get(
             "total_available_routes", 0
         ),
+        "pricing": record.get("pricing"),
+        "margin": record.get("margin"),
         "created_at": (
             created_at.isoformat()
             if created_at
@@ -720,6 +759,90 @@ def analyze_shipment(
         raise HTTPException(
             status_code=400,
             detail=str(error)
+        )
+
+
+# ============================================================
+# QUOTATION GENERATION
+# ============================================================
+
+@app.post("/api/quotations/generate")
+def api_generate_quotation(
+    request: RouteRequest
+):
+
+    try:
+
+        quotation = generate_quotation(
+            request.origin,
+            request.destination,
+            request.cargo_type,
+            request.cargo_subtype,
+            request.containers
+        )
+
+        # Save quotation history with pricing data
+
+        try:
+
+            route_result = {
+                "recommended_route": {
+                    "route_id": quotation.get(
+                        "route", {}
+                    ).get("route_id", ""),
+                    "route": quotation.get(
+                        "route", {}
+                    ).get("route_name", ""),
+                    "transit_days": quotation.get(
+                        "route", {}
+                    ).get("transit_days"),
+                    "distance_nm": quotation.get(
+                        "route", {}
+                    ).get("distance_nm"),
+                    "transshipments": quotation.get(
+                        "route", {}
+                    ).get("transshipments"),
+                    "score": quotation.get(
+                        "route", {}
+                    ).get("route_score"),
+                },
+                "origin": request.origin,
+                "destination": request.destination,
+                "cargo_type": request.cargo_type,
+                "cargo_subtype": request.cargo_subtype,
+                "containers": request.containers,
+            }
+
+            _save_route_history(
+                route_result, request, quotation
+            )
+
+        except Exception as history_error:
+
+            logger.warning(
+                "Could not save quotation history: %s",
+                history_error
+            )
+
+        return quotation
+
+    except ValueError as error:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
+
+    except Exception as error:
+
+        logger.error(
+            "Quotation generation error: %s", error
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to generate quotation. "
+                   "Please try again later."
         )
 
 
