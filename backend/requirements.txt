@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 pymongo
 bcrypt
+PyJWT
 python-dotenv
 pandas
 pydantic

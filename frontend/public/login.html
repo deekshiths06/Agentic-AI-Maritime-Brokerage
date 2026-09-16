@@ -886,6 +886,25 @@ loginForm.addEventListener(
                 )
             );
 
+            /* The backend-issued token is used for
+               admin-only API calls. The role is read
+               from the logged-in user object. */
+
+            if (data.token) {
+
+                localStorage.setItem(
+                    "authToken",
+                    data.token
+                );
+
+            } else {
+
+                localStorage.removeItem(
+                    "authToken"
+                );
+
+            }
+
 
             showMessage(
                 "Login successful. Opening your dashboard...",
@@ -895,6 +914,10 @@ loginForm.addEventListener(
 
             /* =============================================
                REDIRECT
+               The role stored in this object decides which
+               dashboard App.jsx opens. Admin users get the
+               Admin Dashboard, normal users get the User
+               Dashboard automatically.
             ============================================= */
 
             setTimeout(

@@ -57,12 +57,53 @@ const howToWorkflow = [
   { icon: "⌖", label: "Analyze Route" },
   { icon: "%", label: "Pricing & Margin" },
   { icon: "$", label: "Generate Quotation" },
-  { icon: "◇", label: "Route History" },
+  { icon: "▤", label: "Accept Quotation" },
+  { icon: "◇", label: "Track Shipment" },
+];
+
+// ==========================================
+// SHIPMENT STATUS WORKFLOW
+// Matches the backend SHIPMENT_STATUS_FLOW.
+// This is a platform workflow simulation;
+// no real vessel/GPS tracking is claimed.
+// ==========================================
+
+const shipmentStatusFlow = [
+  "Booking Confirmed",
+  "Cargo Ready",
+  "At Origin Port",
+  "Vessel Departed",
+  "In Transit",
+  "At Destination Port",
+  "Delivered",
 ];
 
 function App() {
-  const [view, setView] = useState("home");
-  const [activeNav, setActiveNav] = useState("Dashboard");
+  const readSavedUser = () => {
+    try {
+      const saved =
+        localStorage.getItem("loggedInUser") ||
+        localStorage.getItem("user");
+
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const [view, setView] = useState(() => {
+    const saved = readSavedUser();
+    return saved?.role === "admin"
+      ? "admin-home"
+      : "home";
+  });
+
+  const [activeNav, setActiveNav] = useState(() => {
+    const saved = readSavedUser();
+    return saved?.role === "admin"
+      ? "Admin Dashboard"
+      : "Dashboard";
+  });
 
   const [origins, setOrigins] = useState([]);
   const [destinations, setDestinations] = useState([]);
@@ -81,7 +122,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [user, setUser] = useState({});
+  const [user] = useState(readSavedUser);
 
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -95,7 +136,74 @@ function App() {
   const [quotationError, setQuotationError] = useState("");
 
   // ==========================================
+  // SHIPMENT STATE
+  // ==========================================
+
+  const [shipments, setShipments] = useState([]);
+  const [shipmentsLoading, setShipmentsLoading] =
+    useState(false);
+  const [shipmentsError, setShipmentsError] = useState("");
+
+  const [shipmentDetails, setShipmentDetails] = useState(null);
+  const [shipmentDetailsLoading, setShipmentDetailsLoading] =
+    useState(false);
+  const [shipmentDetailsError, setShipmentDetailsError] =
+    useState("");
+
+  const [acceptingQuotation, setAcceptingQuotation] =
+    useState(false);
+  const [acceptResult, setAcceptResult] = useState(null);
+  const [acceptError, setAcceptError] = useState("");
+
+  // ==========================================
+  // ADMIN STATE
+  // ==========================================
+
+  const [adminStats, setAdminStats] = useState(null);
+  const [adminStatsLoading, setAdminStatsLoading] =
+    useState(false);
+  const [adminStatsError, setAdminStatsError] = useState("");
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminUsersLoading, setAdminUsersLoading] =
+    useState(false);
+  const [adminUsersError, setAdminUsersError] = useState("");
+  const [adminUserSearch, setAdminUserSearch] = useState("");
+  const [adminActivity, setAdminActivity] = useState([]);
+  const [adminActivityLoading, setAdminActivityLoading] =
+    useState(false);
+  const [adminActivityError, setAdminActivityError] =
+    useState("");
+  const [adminQuotations, setAdminQuotations] = useState([]);
+  const [adminQuotationsLoading, setAdminQuotationsLoading] =
+    useState(false);
+  const [adminQuotationsError, setAdminQuotationsError] =
+    useState("");
+  const [adminShipments, setAdminShipments] = useState([]);
+  const [adminShipmentsLoading, setAdminShipmentsLoading] =
+    useState(false);
+  const [adminShipmentsError, setAdminShipmentsError] =
+    useState("");
+  const [adminShipmentFilter, setAdminShipmentFilter] =
+    useState("");
+  const [adminShipmentStatuses, setAdminShipmentStatuses] =
+    useState([]);
+  const [updatingShipmentId, setUpdatingShipmentId] =
+    useState(null);
+  const [adminShipmentMessage, setAdminShipmentMessage] =
+    useState("");
+  const [adminShipmentMessageError, setAdminShipmentMessageError] =
+    useState("");
+  const [adminPricing, setAdminPricing] = useState([]);
+  const [adminPricingLoading, setAdminPricingLoading] =
+    useState(false);
+  const [adminPricingError, setAdminPricingError] =
+    useState("");
+
+  // ==========================================
   // LOGIN CHECK
+  // The saved user, initial view and active nav
+  // are derived once at mount from localStorage
+  // via the lazy state initializers above.
   // ==========================================
 
   useEffect(() => {
@@ -103,21 +211,19 @@ function App() {
 
     if (loggedIn !== "true") {
       window.location.href = "/login.html";
-      return;
-    }
-
-    const savedUser =
-      localStorage.getItem("loggedInUser") ||
-      localStorage.getItem("user");
-
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (err) {
-        console.error("Unable to read user information");
-      }
     }
   }, []);
+
+  // ==========================================
+  // USER ROLE
+  // Old localStorage records may have no role.
+  // They are always treated as a normal user.
+  // ==========================================
+
+  const userRole =
+    user?.role === "admin" ? "admin" : "user";
+
+  const isAdmin = userRole === "admin";
 
   // ==========================================
   // LOAD LOCATIONS
@@ -179,6 +285,8 @@ function App() {
     setView("search");
     setActiveNav("Routes");
     setError("");
+    setAcceptError("");
+    setAcceptResult(null);
   };
 
   const handleNewSearch = () => {
@@ -186,6 +294,8 @@ function App() {
     setActiveNav("Routes");
     setResult(null);
     setError("");
+    setAcceptError("");
+    setAcceptResult(null);
   };
 
   // ==========================================
@@ -216,6 +326,19 @@ function App() {
 } catch {
       return { id: "", contact: "" };
     }
+  };
+
+  const getAuthHeaders = () => {
+    const token =
+      localStorage.getItem("authToken");
+
+    if (token) {
+      return {
+        Authorization: `Bearer ${token}`,
+      };
+    }
+
+    return {};
   };
 
   const formatAnalysisDate = (value) => {
@@ -258,7 +381,8 @@ function App() {
       }
 
       const response = await fetch(
-        `http://127.0.0.1:8000/api/routes/history?${params}`
+        `http://127.0.0.1:8000/api/routes/history?${params}`,
+        { headers: { ...getAuthHeaders() } }
       );
 
       if (!response.ok) {
@@ -317,6 +441,7 @@ function App() {
         `http://127.0.0.1:8000/api/routes/history/${recordId}?${params}`,
         {
           method: "DELETE",
+          headers: { ...getAuthHeaders() },
         }
       );
 
@@ -377,6 +502,7 @@ function App() {
         `http://127.0.0.1:8000/api/routes/history?${params}`,
         {
           method: "DELETE",
+          headers: { ...getAuthHeaders() },
         }
       );
 
@@ -483,6 +609,8 @@ function App() {
     setRouteCargoSubtypes([]);
     setResult(null);
     setError("");
+    setAcceptError("");
+    setAcceptResult(null);
   };
 
   // ==========================================
@@ -498,6 +626,8 @@ function App() {
     setRouteCargoSubtypes([]);
     setResult(null);
     setError("");
+    setAcceptError("");
+    setAcceptResult(null);
   };
 
   // ==========================================
@@ -512,6 +642,8 @@ function App() {
     setRouteCargoSubtypes([]);
     setResult(null);
     setError("");
+    setAcceptError("");
+    setAcceptResult(null);
 
     if (value && origin && destination) {
       fetchRouteSubtypes(
@@ -577,6 +709,7 @@ function App() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...getAuthHeaders(),
           },
 
           body: JSON.stringify({
@@ -641,6 +774,8 @@ function App() {
   const handleGenerateQuotation = async () => {
     setQuotationError("");
     setQuotation(null);
+    setAcceptError("");
+    setAcceptResult(null);
 
     if (!origin || !destination || !cargoType || !cargoSubtype) {
       setQuotationError(
@@ -658,6 +793,7 @@ function App() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...getAuthHeaders(),
           },
           body: JSON.stringify({
             origin,
@@ -701,6 +837,201 @@ function App() {
   };
 
   // ==========================================
+  // MY SHIPMENTS
+  // Loads only the logged-in user's shipments
+  // from the backend. Never hard-coded.
+  // ==========================================
+
+  const goToShipments = () => {
+    setActiveNav("My Shipments");
+    setView("shipments");
+    setError("");
+    loadShipments();
+  };
+
+  const loadShipments = async () => {
+    const identity = resolveUser();
+
+    if (!identity.id) {
+      setShipments([]);
+      setShipmentsError(
+        "Sign in is required to view your shipments."
+      );
+      setShipmentsLoading(false);
+      return;
+    }
+
+    setShipmentsLoading(true);
+    setShipmentsError("");
+
+    try {
+      const params = new URLSearchParams({
+        user_id: identity.id,
+      });
+
+      if (identity.contact) {
+        params.append("contact", identity.contact);
+      }
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/shipments?${params}`,
+        { headers: { ...getAuthHeaders() } }
+      );
+
+      if (!response.ok) {
+        const data = await response
+          .json()
+          .catch(() => ({}));
+        throw new Error(
+          data?.detail ||
+            "Unable to load your shipments."
+        );
+      }
+
+      const data = await response.json();
+
+      setShipments(data?.shipments || []);
+    } catch (err) {
+      console.error("Shipments loading error:", err);
+      setShipments([]);
+      setShipmentsError(
+        err.message ||
+          "Unable to load your shipments."
+      );
+    } finally {
+      setShipmentsLoading(false);
+    }
+  };
+
+  // ==========================================
+  // SHIPMENT DETAILS
+  // Fetches one shipment guarded by the backend
+  // so a user can only open their own shipment.
+  // ==========================================
+
+  const openShipmentDetails = (shipmentId) => {
+    setActiveNav("My Shipments");
+    setView("shipment-details");
+    setError("");
+    loadShipmentDetails(shipmentId);
+  };
+
+  const loadShipmentDetails = async (shipmentId) => {
+    setShipmentDetails(null);
+    setShipmentDetailsError("");
+    setShipmentDetailsLoading(true);
+
+    const identity = resolveUser();
+
+    try {
+      const params = new URLSearchParams();
+
+      if (identity.id) {
+        params.append("user_id", identity.id);
+      }
+
+      if (identity.contact) {
+        params.append("contact", identity.contact);
+      }
+
+      const query = params.toString();
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/shipments/${encodeURIComponent(
+          shipmentId
+        )}${query ? `?${query}` : ""}`,
+        { headers: { ...getAuthHeaders() } }
+      );
+
+      if (!response.ok) {
+        const data = await response
+          .json()
+          .catch(() => ({}));
+        throw new Error(
+          data?.detail ||
+            "Unable to load the shipment details."
+        );
+      }
+
+      const data = await response.json();
+
+      setShipmentDetails(data?.shipment || null);
+    } catch (err) {
+      console.error(
+        "Shipment details loading error:",
+        err
+      );
+      setShipmentDetails(null);
+      setShipmentDetailsError(
+        err.message ||
+          "Unable to load the shipment details."
+      );
+    } finally {
+      setShipmentDetailsLoading(false);
+    }
+  };
+
+  // ==========================================
+  // ACCEPT QUOTATION -> CREATE SHIPMENT
+  // A shipment is created ONLY when the user
+  // explicitly accepts a generated quotation.
+  // Accepting the same quotation twice never
+  // creates a duplicate shipment.
+  // ==========================================
+
+  const handleAcceptQuotation = async () => {
+    const quotationId = quotation?.quotation_id;
+
+    if (!quotationId) {
+      setAcceptError(
+        "No valid quotation reference is available. Generate a quotation first."
+      );
+      return;
+    }
+
+    setAcceptError("");
+    setAcceptResult(null);
+    setAcceptingQuotation(true);
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/quotations/${encodeURIComponent(
+          quotationId
+        )}/accept`,
+        {
+          method: "POST",
+          headers: { ...getAuthHeaders() },
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Unable to accept this quotation."
+        );
+      }
+
+      setAcceptResult(data);
+    } catch (err) {
+      console.error(
+        "Quotation acceptance error:",
+        err
+      );
+      setAcceptError(
+        err.message ||
+          "Unable to accept this quotation."
+      );
+    } finally {
+      setAcceptingQuotation(false);
+    }
+  };
+
+  // ==========================================
   // LOGOUT
   // ==========================================
 
@@ -709,8 +1040,388 @@ function App() {
     localStorage.removeItem("user");
     localStorage.removeItem("token");
     localStorage.removeItem("loggedInUser");
+    localStorage.removeItem("authToken");
 
     window.location.href = "/login.html";
+  };
+
+  // ==========================================
+  // ADMIN API HELPER
+  // Sends the backend-issued token so the
+  // server can verify the admin role there.
+  // ==========================================
+
+  const adminFetch = async (url, options = {}) => {
+    const token =
+      localStorage.getItem("authToken");
+
+    const headers = {
+      ...(options.headers || {}),
+    };
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    return fetch(url, {
+      ...options,
+      headers,
+    });
+  };
+
+  // ==========================================
+  // LOAD ADMIN STATS
+  // ==========================================
+
+  const loadAdminStats = async () => {
+    setAdminStatsLoading(true);
+    setAdminStatsError("");
+
+    try {
+      const response = await adminFetch(
+        "http://127.0.0.1:8000/api/admin/stats"
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load admin statistics."
+        );
+      }
+
+      setAdminStats({
+        total_users: data.total_users ?? 0,
+        total_route_analyses:
+          data.total_route_analyses ?? 0,
+        total_quotations: data.total_quotations ?? 0,
+        total_shipments: data.total_shipments ?? 0,
+        active_shipments: data.active_shipments ?? 0,
+        delivered_shipments:
+          data.delivered_shipments ?? 0,
+      });
+    } catch (err) {
+      console.error(
+        "Admin stats loading error:",
+        err
+      );
+      setAdminStats(null);
+      setAdminStatsError(
+        err.message ||
+          "Unable to load admin statistics."
+      );
+    } finally {
+      setAdminStatsLoading(false);
+    }
+  };
+
+  // ==========================================
+  // LOAD ADMIN USERS
+  // ==========================================
+
+  const loadAdminUsers = async () => {
+    setAdminUsersLoading(true);
+    setAdminUsersError("");
+
+    try {
+      const params = new URLSearchParams();
+
+      if (adminUserSearch.trim()) {
+        params.append("search", adminUserSearch.trim());
+      }
+
+      const query = params.toString();
+
+      const response = await adminFetch(
+        `http://127.0.0.1:8000/api/admin/users${query ? `?${query}` : ""}`
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load registered users."
+        );
+      }
+
+      setAdminUsers(data?.users || []);
+    } catch (err) {
+      console.error(
+        "Admin users loading error:",
+        err
+      );
+      setAdminUsers([]);
+      setAdminUsersError(
+        err.message ||
+          "Unable to load registered users."
+      );
+    } finally {
+      setAdminUsersLoading(false);
+    }
+  };
+
+  // ==========================================
+  // LOAD ADMIN ROUTE ACTIVITY
+  // ==========================================
+
+  const loadAdminActivity = async () => {
+    setAdminActivityLoading(true);
+    setAdminActivityError("");
+
+    try {
+      const response = await adminFetch(
+        "http://127.0.0.1:8000/api/admin/route-activity"
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load route activity."
+        );
+      }
+
+      setAdminActivity(data?.activity || []);
+    } catch (err) {
+      console.error(
+        "Admin route activity loading error:",
+        err
+      );
+      setAdminActivity([]);
+      setAdminActivityError(
+        err.message ||
+          "Unable to load route activity."
+      );
+    } finally {
+      setAdminActivityLoading(false);
+    }
+  };
+
+  // ==========================================
+  // LOAD ADMIN QUOTATIONS
+  // ==========================================
+
+  const loadAdminQuotations = async () => {
+    setAdminQuotationsLoading(true);
+    setAdminQuotationsError("");
+
+    try {
+      const response = await adminFetch(
+        "http://127.0.0.1:8000/api/admin/quotations"
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load quotations."
+        );
+      }
+
+      setAdminQuotations(data?.quotations || []);
+    } catch (err) {
+      console.error(
+        "Admin quotations loading error:",
+        err
+      );
+      setAdminQuotations([]);
+      setAdminQuotationsError(
+        err.message ||
+          "Unable to load quotations."
+      );
+    } finally {
+      setAdminQuotationsLoading(false);
+    }
+  };
+
+  // ==========================================
+  // LOAD ADMIN SHIPMENTS
+  // ==========================================
+
+  const loadAdminShipments = async (statusFilter) => {
+    const filter =
+      statusFilter !== undefined
+        ? statusFilter
+        : adminShipmentFilter;
+
+    setAdminShipmentsLoading(true);
+    setAdminShipmentsError("");
+    setAdminShipmentMessage("");
+    setAdminShipmentMessageError("");
+
+    try {
+      const params = new URLSearchParams();
+
+      if (filter.trim()) {
+        params.append("status", filter.trim());
+      }
+
+      const query = params.toString();
+
+      const response = await adminFetch(
+        `http://127.0.0.1:8000/api/admin/shipments${query ? `?${query}` : ""}`
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load shipments."
+        );
+      }
+
+      setAdminShipments(data?.shipments || []);
+      setAdminShipmentStatuses(
+        data?.statuses ||
+          shipmentStatusFlow ||
+          []
+      );
+    } catch (err) {
+      console.error(
+        "Admin shipments loading error:",
+        err
+      );
+      setAdminShipments([]);
+      setAdminShipmentsError(
+        err.message ||
+          "Unable to load shipments."
+      );
+    } finally {
+      setAdminShipmentsLoading(false);
+    }
+  };
+
+  const handleAdminShipmentFilter = (status) => {
+    setAdminShipmentFilter(status);
+    loadAdminShipments(status);
+  };
+
+  // ==========================================
+  // UPDATE ADMIN SHIPMENT STATUS
+  // Uses the backend forward-only workflow.
+  // ==========================================
+
+  const handleAdminShipmentStatusChange = async (
+    shipment,
+    newStatus
+  ) => {
+    if (
+      newStatus === shipment.status ||
+      !newStatus
+    ) {
+      return;
+    }
+
+    setUpdatingShipmentId(shipment.shipment_id);
+    setAdminShipmentMessage("");
+    setAdminShipmentMessageError("");
+
+    try {
+      const response = await adminFetch(
+        `http://127.0.0.1:8000/api/admin/shipments/${encodeURIComponent(
+          shipment.shipment_id
+        )}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status: newStatus,
+          }),
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to update shipment status."
+        );
+      }
+
+      setAdminShipmentMessage(
+        data?.message ||
+          `Shipment ${shipment.shipment_id} status updated.`
+      );
+
+      setAdminShipments((prev) =>
+        prev.map((item) =>
+          item.shipment_id === shipment.shipment_id
+            ? data?.shipment || item
+            : item
+        )
+      );
+    } catch (err) {
+      console.error(
+        "Admin shipment status update error:",
+        err
+      );
+      setAdminShipmentMessageError(
+        err.message ||
+          "Unable to update shipment status."
+      );
+    } finally {
+      setUpdatingShipmentId(null);
+    }
+  };
+
+  // ==========================================
+  // LOAD ADMIN PRICING & MARGIN
+  // ==========================================
+
+  const loadAdminPricing = async () => {
+    setAdminPricingLoading(true);
+    setAdminPricingError("");
+
+    try {
+      const response = await adminFetch(
+        "http://127.0.0.1:8000/api/admin/pricing"
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load pricing & margin data."
+        );
+      }
+
+      setAdminPricing(data?.pricing || []);
+    } catch (err) {
+      console.error(
+        "Admin pricing loading error:",
+        err
+      );
+      setAdminPricing([]);
+      setAdminPricingError(
+        err.message ||
+          "Unable to load pricing & margin data."
+      );
+    } finally {
+      setAdminPricingLoading(false);
+    }
   };
 
   // ==========================================
@@ -905,10 +1616,19 @@ function App() {
     "User";
 
   const profileContact =
+    user?.contact ||
     user?.email ||
     user?.mobile ||
     user?.phone ||
     "";
+
+  const profileRoleLabel = isAdmin
+    ? "Administrator"
+    : "User";
+
+  const profileRoleSubLabel = isAdmin
+    ? "Admin Dashboard"
+    : "Maritime Analyst";
 
   // ==========================================
   // PROFILE MENU
@@ -983,6 +1703,29 @@ function App() {
       return;
     }
 
+    if (item === "My Shipments") {
+      setActiveNav("My Shipments");
+      setView("shipments");
+      setError("");
+      loadShipments();
+      return;
+    }
+
+    if (item === "Shipments") {
+      if (isAdmin) {
+        setActiveNav("Shipments");
+        setView("admin-shipments");
+        setError("");
+        loadAdminShipments();
+      } else {
+        setActiveNav("My Shipments");
+        setView("shipments");
+        setError("");
+        loadShipments();
+      }
+      return;
+    }
+
     if (item === "Quotation") {
       setActiveNav("Quotation");
       setView("quotation");
@@ -997,9 +1740,96 @@ function App() {
       return;
     }
 
+    // ----------------------------------------
+    // ADMIN SECTIONS
+    // ----------------------------------------
+
+    if (item === "Admin Dashboard") {
+      setActiveNav("Admin Dashboard");
+      setView("admin-home");
+      setError("");
+      loadAdminStats();
+      loadAdminShipments();
+      loadAdminActivity();
+      return;
+    }
+
+    if (item === "Users") {
+      setActiveNav("Users");
+      setView("admin-users");
+      setError("");
+      loadAdminUsers();
+      return;
+    }
+
+    if (item === "Quotations") {
+      setActiveNav("Quotations");
+      setView("admin-quotations");
+      setError("");
+      loadAdminQuotations();
+      return;
+    }
+
+    if (item === "Pricing & Margin") {
+      setActiveNav("Pricing & Margin");
+      setView("admin-pricing");
+      setError("");
+      loadAdminPricing();
+      return;
+    }
+
+    if (item === "Route Activity") {
+      setActiveNav("Route Activity");
+      setView("admin-activity");
+      setError("");
+      loadAdminActivity();
+      return;
+    }
+
     setActiveNav(item);
     setError(`${item} module is not available yet.`);
   };
+
+  // ==========================================
+  // ADMIN SIDEBAR DATA LOADING
+  // The current users list is refreshed when
+  // the search changes.
+  // ==========================================
+
+  const handleAdminUserSearch = (value) => {
+    setAdminUserSearch(value);
+  };
+
+  useEffect(() => {
+    if (activeNav === "Users") {
+      const timer = setTimeout(
+        loadAdminUsers,
+        350
+      );
+      return () => clearTimeout(timer);
+    }
+  // adminUserSearch is the only meaningful trigger for the debounce;
+  // activeNav is a guard, loadAdminUsers is intentionally omitted
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminUserSearch]);
+
+  // ==========================================
+  // ADMIN DASHBOARD
+  // Loads the admin dashboard data when the
+  // admin first lands on the main dashboard.
+  // ==========================================
+
+  useEffect(() => {
+    if (isAdmin && view === "admin-home") {
+      loadAdminStats();
+      loadAdminShipments();
+      loadAdminActivity();
+    }
+  // Intentionally run only when entering the admin
+  // dashboard so navigation through the sidebar
+  // controls the loading (handleNavClick handles it).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, view]);
 
   // ==========================================
   // DASHBOARD
@@ -3302,6 +4132,130 @@ function App() {
 
             </div>
 
+            {/* ACCEPT QUOTATION -> CREATE SHIPMENT */}
+
+            <div className="quotation-section accept-quotation-section result-animate result-animate-2">
+
+              <div className="quotation-section-header">
+
+                <div className="quotation-section-icon quotation-icon-accept">
+                  ▤
+                </div>
+
+                <div>
+
+                  <span className="section-label">
+                    CREATE SHIPMENT
+                  </span>
+
+                  <h2>
+                    Accept This Quotation
+                  </h2>
+
+                  <p>
+                    Accepting the quotation creates a shipment
+                    with the status "Booking Confirmed". A quotation
+                    must be accepted explicitly to create a shipment.
+                  </p>
+
+                </div>
+
+              </div>
+
+              {/* ACCEPT ERROR */}
+
+              {acceptError && (
+                <div className="error-message accept-error">
+                  {acceptError}
+                </div>
+              )}
+
+              {/* ACCEPT SUCCESS / ALREADY EXISTS */}
+
+              {acceptResult ? (
+                <div className="accept-success">
+
+                  <div
+                    className={
+                      acceptResult.already_exists
+                        ? "accept-success-icon accept-success-icon-existing"
+                        : "accept-success-icon"
+                    }
+                  >
+                    {acceptResult.already_exists ? "◉" : "✓"}
+                  </div>
+
+                  <h3>
+                    {acceptResult.already_exists
+                      ? "Shipment Already Exists"
+                      : "Shipment Created Successfully"}
+                  </h3>
+
+                  <div className="accept-success-id">
+                    <span>
+                      Shipment ID:
+                    </span>
+                    <strong>
+                      {acceptResult.shipment?.shipment_id ||
+                        "-"}
+                    </strong>
+                  </div>
+
+                  <div className="accept-success-status">
+                    <span>
+                      Status:
+                    </span>
+                    <strong>
+                      {acceptResult.shipment?.status ||
+                        "Booking Confirmed"}
+                    </strong>
+                  </div>
+
+                  <p className="accept-success-message">
+                    {acceptResult.message ||
+                      (acceptResult.already_exists
+                        ? "This quotation was already used to create a shipment."
+                        : "Your shipment has been booked successfully.")}
+                  </p>
+
+                  <button
+                    className="primary-button accept-view-shipments"
+                    type="button"
+                    onClick={goToShipments}
+                  >
+                    View My Shipments →
+                  </button>
+
+                </div>
+              ) : (
+                /* ACCEPT ACTION */
+
+                <div className="accept-actions">
+
+                  <button
+                    className="accept-quotation-button"
+                    type="button"
+                    disabled={
+                      acceptingQuotation ||
+                      !quotation.quotation_id
+                    }
+                    onClick={handleAcceptQuotation}
+                  >
+                    {acceptingQuotation
+                      ? "Accepting..."
+                      : "Accept Quotation"}
+                  </button>
+
+                  <span className="accept-meta">
+                    Your quotation reference:" "
+                    {quotation.quotation_id || "not saved"}
+                  </span>
+
+                </div>
+              )}
+
+            </div>
+
             {/* BOTTOM ACTIONS */}
 
             <div className="results-actions quotation-results-actions">
@@ -3455,6 +4409,2083 @@ function App() {
   };
 
   // ==========================================
+  // ADMIN VIEW HELPERS
+  // ==========================================
+
+  const formatAdminDate = (value) => {
+    if (!value) return "-";
+
+    if (value instanceof Date) {
+      return value.toLocaleString();
+    }
+
+    if (typeof value === "string") {
+      const date = new Date(value);
+      if (isNaN(date.getTime())) return value;
+      return date.toLocaleString();
+    }
+
+    return String(value);
+  };
+
+  const formatMoney = (value) => {
+    if (value === undefined || value === null || value === "") {
+      return "-";
+    }
+
+    const num = Number(value);
+    if (isNaN(num)) return "-";
+
+    return `$${num.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+    })}`;
+  };
+
+  const formatPercent = (value) => {
+    if (value === undefined || value === null || value === "") {
+      return "-";
+    }
+
+    const num = Number(value);
+    if (isNaN(num)) return "-";
+
+    return `${num.toFixed(1)}%`;
+  };
+
+  const adminRoleBadge = (role) => {
+    const normalized =
+      role === "admin" ? "admin" : "user";
+    return (
+      <span
+        className={`admin-role-badge ${
+          normalized === "admin"
+            ? "admin-role-admin"
+            : "admin-role-user"
+        }`}
+      >
+        {normalized === "admin"
+          ? "Administrator"
+          : "User"}
+      </span>
+    );
+  };
+
+  // ==========================================
+  // MY SHIPMENTS PAGE
+  // Lists only the signed-in user's shipments.
+  // ==========================================
+
+  const formatUsd = (value) => {
+    const num = Number(value);
+    if (isNaN(num)) return "-";
+    return num.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const shipmentStatusClass = (status) => {
+    const value = String(status || "").toLowerCase();
+    if (value.includes("delivered")) return "delivered";
+    if (value.includes("transit")) return "transit";
+    if (value.includes("destination")) return "destination";
+    if (value.includes("departed")) return "departed";
+    if (value.includes("origin")) return "origin";
+    if (value.includes("ready")) return "ready";
+    return "confirmed";
+  };
+
+  const renderShipments = () => {
+    return (
+      <section className="shipments-screen">
+        <div className="results-header">
+          <div>
+            <span className="section-label">
+              <span className="section-label-icon">
+                ▤
+              </span>
+              SHIPMENTS
+            </span>
+            <h1>My Shipments</h1>
+            <p>
+              Track the status of every quotation you
+              accepted. Accepting a quotation is the
+              step that creates a shipment.
+            </p>
+          </div>
+        </div>
+
+        {shipmentsLoading ? (
+          <div className="loading-message">
+            Loading your shipments...
+          </div>
+        ) : shipmentsError ? (
+          <div className="error-message">
+            {shipmentsError}
+          </div>
+        ) : shipments.length === 0 ? (
+          <div className="history-empty">
+            <span className="history-empty-icon">
+              ▤
+            </span>
+            <h3>No Shipments Yet</h3>
+            <p>
+              You have not accepted any quotation yet.
+              Generate a quotation, then accept it to
+              create your first shipment.
+            </p>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={handleNavClick.bind(null, "Quotation")}
+            >
+              Generate a Quotation →
+            </button>
+          </div>
+        ) : (
+          <div className="shipments-grid">
+            {shipments.map((shipment) => (
+              <article
+                className="shipment-card"
+                key={shipment.shipment_id}
+              >
+                <div className="shipment-card-header">
+                  <div>
+                    <span className="shipment-id">
+                      {shipment.shipment_id}
+                    </span>
+                    <span
+                      className={`shipment-status ${
+                        shipmentStatusClass(shipment.status)
+                      }`}
+                    >
+                      {shipment.status || "Booking Confirmed"}
+                    </span>
+                  </div>
+                  <span className="shipment-date">
+                    {formatAnalysisDate(shipment.created_at)}
+                  </span>
+                </div>
+
+                <div className="shipment-route">
+                  <div className="shipment-route-points">
+                    <strong>{shipment.origin}</strong>
+                    <span className="shipment-route-arrow">
+                      →
+                    </span>
+                    <strong>{shipment.destination}</strong>
+                  </div>
+                  <span className="shipment-route-name">
+                    {shipment.route_name || "Route"}
+                  </span>
+                </div>
+
+                <div className="shipment-card-meta">
+                  <div className="shipment-meta-item">
+                    <span className="shipment-meta-label">
+                      Cargo
+                    </span>
+                    <span className="shipment-meta-value">
+                      {shipment.cargo_type || "-"}
+                      {shipment.cargo_subtype
+                        ? ` / ${shipment.cargo_subtype}`
+                        : ""}
+                    </span>
+                  </div>
+                  <div className="shipment-meta-item">
+                    <span className="shipment-meta-label">
+                      Containers
+                    </span>
+                    <span className="shipment-meta-value">
+                      {shipment.containers ?? "-"}
+                    </span>
+                  </div>
+                  <div className="shipment-meta-item">
+                    <span className="shipment-meta-label">
+                      Transit
+                    </span>
+                    <span className="shipment-meta-value">
+                      {shipment.transit_days ?? "-"} days
+                    </span>
+                  </div>
+                  <div className="shipment-meta-item">
+                    <span className="shipment-meta-label">
+                      Transshipments
+                    </span>
+                    <span className="shipment-meta-value">
+                      {shipment.transshipments ?? "-"}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  className="secondary-button shipment-view-details"
+                  type="button"
+                  onClick={() =>
+                    openShipmentDetails(shipment.shipment_id)
+                  }
+                >
+                  View Details →
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  // ==========================================
+  // SHIPMENT DETAILS PAGE
+  // Shows full shipment info plus a status
+  // timeline (platform workflow simulation).
+  // ==========================================
+
+  const renderShipmentDetails = () => {
+    const shipment = shipmentDetails;
+
+    return (
+      <section className="shipment-details-screen">
+        <div className="shipment-details-topbar">
+          <button
+            className="back-button"
+            type="button"
+            onClick={goToShipments}
+          >
+            ← My Shipments
+          </button>
+        </div>
+
+        {shipmentDetailsLoading ? (
+          <div className="loading-message">
+            Loading shipment details...
+          </div>
+        ) : shipmentDetailsError ? (
+          <div className="error-message">
+            {shipmentDetailsError}
+          </div>
+        ) : !shipment ? (
+          <div className="history-empty">
+            <span className="history-empty-icon">
+              ▤
+            </span>
+            <h3>Shipment Not Found</h3>
+            <p>
+              The shipment you are looking for is not
+              available.
+            </p>
+          </div>
+        ) : (
+          <div className="shipment-details">
+            <div className="shipment-details-header">
+              <div>
+                <span className="section-label">
+                  SHIPMENT DETAILS
+                </span>
+                <h1>{shipment.shipment_id}</h1>
+              </div>
+              <span
+                className={`shipment-status shipment-status-large ${
+                  shipmentStatusClass(shipment.status)
+                }`}
+              >
+                {shipment.status || "Booking Confirmed"}
+              </span>
+            </div>
+
+            <div className="shipment-details-section">
+              <span className="section-label">
+                ROUTE & CARGO
+              </span>
+              <div className="shipment-details-grid">
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    Origin
+                  </span>
+                  <span className="shipment-meta-value">
+                    {shipment.origin}
+                  </span>
+                </div>
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    Destination
+                  </span>
+                  <span className="shipment-meta-value">
+                    {shipment.destination}
+                  </span>
+                </div>
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    Route
+                  </span>
+                  <span className="shipment-meta-value">
+                    {shipment.route_name || "-"}
+                  </span>
+                </div>
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    Cargo
+                  </span>
+                  <span className="shipment-meta-value">
+                    {shipment.cargo_type || "-"}
+                    {shipment.cargo_subtype
+                      ? ` / ${shipment.cargo_subtype}`
+                      : ""}
+                  </span>
+                </div>
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    Containers
+                  </span>
+                  <span className="shipment-meta-value">
+                    {shipment.containers ?? "-"}
+                  </span>
+                </div>
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    Transit Days
+                  </span>
+                  <span className="shipment-meta-value">
+                    {shipment.transit_days ?? "-"}
+                  </span>
+                </div>
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    Distance
+                  </span>
+                  <span className="shipment-meta-value">
+                    {shipment.distance_nm
+                      ? `${shipment.distance_nm} nm`
+                      : "-"}
+                  </span>
+                </div>
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    Transshipments
+                  </span>
+                  <span className="shipment-meta-value">
+                    {shipment.transshipments ?? "-"}
+                  </span>
+                </div>
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    Quotation Ref
+                  </span>
+                  <span className="shipment-meta-value">
+                    {shipment.quotation_id || "-"}
+                  </span>
+                </div>
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    Created
+                  </span>
+                  <span className="shipment-meta-value">
+                    {formatAnalysisDate(shipment.created_at)}
+                  </span>
+                </div>
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    Contact
+                  </span>
+                  <span className="shipment-meta-value">
+                    {shipment.user_contact || "-"}
+                  </span>
+                </div>
+                <div className="shipment-details-item">
+                  <span className="shipment-meta-label">
+                    User
+                  </span>
+                  <span className="shipment-meta-value">
+                    {shipment.user_name || "-"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {shipment.pricing && (
+              <div className="shipment-details-section">
+                <span className="section-label">
+                  PRICING SUMMARY
+                </span>
+                <div className="shipment-details-grid">
+                  <div className="shipment-details-item">
+                    <span className="shipment-meta-label">
+                      Base Freight
+                    </span>
+                    <span className="shipment-meta-value">
+                      ${formatUsd(shipment.pricing.base_freight_usd)}
+                    </span>
+                  </div>
+                  <div className="shipment-details-item">
+                    <span className="shipment-meta-label">
+                      Operating Cost
+                    </span>
+                    <span className="shipment-meta-value">
+                      ${formatUsd(shipment.pricing.operating_cost_usd)}
+                    </span>
+                  </div>
+                  <div className="shipment-details-item">
+                    <span className="shipment-meta-label">
+                      Demand Factor
+                    </span>
+                    <span className="shipment-meta-value">
+                      {Number(
+                        shipment.pricing.demand_factor
+                      ).toFixed(2) || "-"}
+                    </span>
+                  </div>
+                  <div className="shipment-details-item">
+                    <span className="shipment-meta-label">
+                      Demand Adjusted Cost
+                    </span>
+                    <span className="shipment-meta-value">
+                      ${formatUsd(
+                        shipment.pricing.demand_adjusted_cost_usd
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {shipment.margin && (
+              <div className="shipment-details-section">
+                <span className="section-label">
+                  MARGIN SUMMARY
+                </span>
+                <div className="shipment-details-grid">
+                  <div className="shipment-details-item">
+                    <span className="shipment-meta-label">
+                      Target Margin
+                    </span>
+                    <span className="shipment-meta-value">
+                      {Number(
+                        shipment.margin.target_margin_percent
+                      ).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="shipment-details-item">
+                    <span className="shipment-meta-label">
+                      Recommended Price
+                    </span>
+                    <span className="shipment-meta-value">
+                      ${formatUsd(
+                        shipment.margin.recommended_selling_price_usd
+                      )}
+                    </span>
+                  </div>
+                  <div className="shipment-details-item">
+                    <span className="shipment-meta-label">
+                      Expected Profit
+                    </span>
+                    <span className="shipment-meta-value">
+                      ${formatUsd(
+                        shipment.margin.expected_profit_usd
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="shipment-details-section">
+              <span className="section-label">
+                PROGRESS TIMELINE
+              </span>
+              <p className="shipment-timeline-note">
+                Workflow simulation — a status advances along
+                the booking-to-delivery journey. No live GPS
+                or vessel tracking is claimed.
+              </p>
+
+              <div className="shipment-timeline">
+                {shipmentStatusFlow.map((stage) => {
+                  const stageIndex =
+                    shipmentStatusFlow.indexOf(stage);
+                  const currentIndex =
+                    shipmentStatusFlow.indexOf(shipment.status);
+
+                  const reached =
+                    currentIndex >= 0 &&
+                    stageIndex <= currentIndex;
+
+                  return (
+                    <div
+                      className={`shipment-timeline-step ${
+                        reached
+                          ? "reached"
+                          : "pending"
+                      } ${
+                        stageIndex === currentIndex
+                          ? "current"
+                          : ""
+                      }`}
+                      key={stage}
+                    >
+                      <span className="shipment-timeline-dot" />
+                      <span className="shipment-timeline-label">
+                        {stage}
+                      </span>
+                      {stageIndex === currentIndex && (
+                        <span className="shipment-timeline-current">
+                          Current
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  // ==========================================
+  // ADMIN DASHBOARD
+  // ==========================================
+
+  const renderAdminDashboard = () => {
+    const cards = [
+      {
+        icon: "▦",
+        label: "Total Users",
+        value: adminStats?.total_users ?? 0,
+        note: "Registered accounts",
+      },
+      {
+        icon: "⇢",
+        label: "Route Analyses",
+        value: adminStats?.total_route_analyses ?? 0,
+        note: "Saved route history entries",
+      },
+      {
+        icon: "❝",
+        label: "Quotations",
+        value: adminStats?.total_quotations ?? 0,
+        note: "Generated quotations",
+      },
+      {
+        icon: "▤",
+        label: "Total Shipments",
+        value: adminStats?.total_shipments ?? 0,
+        note: "All created shipments",
+      },
+      {
+        icon: "◈",
+        label: "Active Shipments",
+        value: adminStats?.active_shipments ?? 0,
+        note: "Awaiting delivery",
+      },
+      {
+        icon: "✓",
+        label: "Delivered",
+        value: adminStats?.delivered_shipments ?? 0,
+        note: "Completed shipments",
+      },
+    ];
+
+    const statusCounts = {};
+
+    if (adminShipments && adminShipments.length > 0) {
+      adminShipments.forEach((s) => {
+        const key = s.status || "Unknown";
+        statusCounts[key] = (statusCounts[key] || 0) + 1;
+      });
+    }
+
+    const recentActivity = adminActivity.slice(0, 5);
+
+    return (
+      <section className="home-screen admin-dashboard page-view">
+
+        <div className="welcome-block admin-welcome">
+
+          <div className="welcome-text">
+
+            <span className="welcome-label">
+              MARITIME AI
+            </span>
+
+            <h1>
+              Admin Dashboard
+            </h1>
+
+            <p>
+              Administrative overview of platform users,
+              shipments and quotations.
+            </p>
+
+            <div className="administrator-badge">
+              <span className="administrator-dot"></span>
+              Administrator
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* STATS CARDS */}
+
+        {adminStatsLoading && (
+          <div className="loading-message">
+            <span className="loading-spinner"></span>
+            Loading admin statistics...
+          </div>
+        )}
+
+        {adminStatsError && (
+          <div className="error-message">
+            {adminStatsError}
+          </div>
+        )}
+
+        {!adminStatsLoading &&
+          !adminStatsError &&
+          adminStats && (
+            <div className="admin-stats-grid">
+
+              {cards.map((card) => (
+                <div
+                  className="admin-stat-card"
+                  key={card.label}
+                >
+
+                  <div className="admin-stat-icon">
+                    {card.icon}
+                  </div>
+
+                  <div className="admin-stat-info">
+
+                    <span className="admin-stat-label">
+                      {card.label}
+                    </span>
+
+                    <strong className="admin-stat-value">
+                      {card.value.toLocaleString()}
+                    </strong>
+
+                    <span className="admin-stat-note">
+                      {card.note}
+                    </span>
+
+                  </div>
+
+                </div>
+              ))}
+
+            </div>
+          )}
+
+        {/* SHIPMENT STATUS OVERVIEW */}
+
+        {!adminStatsLoading &&
+          !adminStatsError &&
+          adminStats &&
+          adminShipments.length > 0 && (
+            <div className="comparison-section admin-section-card">
+
+              <div className="admin-section-header">
+                <span className="section-label">
+                  SHIPMENT STATUS OVERVIEW
+                </span>
+                <button
+                  className="secondary-button admin-section-link"
+                  type="button"
+                  onClick={() =>
+                    handleNavClick("Shipments")
+                  }
+                >
+                  Manage Shipments →
+                </button>
+              </div>
+
+              <div className="admin-status-grid">
+
+                {shipmentStatusFlow.map((status) => {
+                  const count =
+                    statusCounts[status] || 0;
+                  return (
+                    <div
+                      className="admin-status-chip"
+                      key={status}
+                    >
+                      <span className="admin-status-chip-label">
+                        {status}
+                      </span>
+                      <strong className="admin-status-chip-value">
+                        {count}
+                      </strong>
+                    </div>
+                  );
+                })}
+
+              </div>
+
+            </div>
+          )}
+
+        {/* RECENT ACTIVITY */}
+
+        {!adminStatsLoading &&
+          !adminStatsError &&
+          adminStats &&
+          recentActivity.length > 0 && (
+            <div className="comparison-section admin-section-card">
+
+              <div className="admin-section-header">
+                <span className="section-label">
+                  RECENT ROUTE ACTIVITY
+                </span>
+                <button
+                  className="secondary-button admin-section-link"
+                  type="button"
+                  onClick={() =>
+                    handleNavClick("Route Activity")
+                  }
+                >
+                  View All →
+                </button>
+              </div>
+
+              <div className="table-wrapper">
+
+                <table className="route-table admin-table">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>User</th>
+                      <th>Origin</th>
+                      <th>Destination</th>
+                      <th>Cargo</th>
+                      <th>Route</th>
+                      <th>Date</th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {recentActivity.map((item) => (
+                      <tr
+                        key={item.record_id}
+                        className="history-row"
+                      >
+
+                        <td>
+                          {item.user_contact ||
+                            "Unknown"}
+                        </td>
+
+                        <td>
+                          {item.origin || "-"}
+                        </td>
+
+                        <td>
+                          {item.destination || "-"}
+                        </td>
+
+                        <td>
+                          {item.cargo_type || "-"}
+                          {item.cargo_subtype
+                            ? ` / ${item.cargo_subtype}`
+                            : ""}
+                        </td>
+
+                        <td>
+                          <div className="history-route-cell">
+                            <strong className="history-route-id">
+                              {item.route_id || "-"}
+                            </strong>
+                            <span className="history-route-name">
+                              {item.route_name || "-"}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td>
+                          <span className="history-date">
+                            {formatAdminDate(
+                              item.created_at
+                            )}
+                          </span>
+                        </td>
+
+                      </tr>
+                    ))}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            </div>
+          )}
+
+        {/* ADMIN QUICK ACTIONS */}
+
+        <div className="info-cards admin-quick-actions">
+
+          <div
+            className="info-card admin-action-card"
+            onClick={() =>
+              handleNavClick("Users")
+            }
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" ||
+                e.key === " "
+              ) {
+                handleNavClick("Users");
+              }
+            }}
+          >
+
+            <div className="info-card-icon">
+              ▽
+            </div>
+
+            <div>
+
+              <h3>
+                Manage Users
+              </h3>
+
+              <p>
+                View all registered users and their
+                account status.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div
+            className="info-card admin-action-card"
+            onClick={() =>
+              handleNavClick("Shipments")
+            }
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" ||
+                e.key === " "
+              ) {
+                handleNavClick("Shipments");
+              }
+            }}
+          >
+
+            <div className="info-card-icon">
+              ▤
+            </div>
+
+            <div>
+
+              <h3>
+                Shipments
+              </h3>
+
+              <p>
+                Manage shipment workflow statuses.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div
+            className="info-card admin-action-card"
+            onClick={() =>
+              handleNavClick("Quotations")
+            }
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" ||
+                e.key === " "
+              ) {
+                handleNavClick("Quotations");
+              }
+            }}
+          >
+
+            <div className="info-card-icon">
+              ❝
+            </div>
+
+            <div>
+
+              <h3>
+                Quotations
+              </h3>
+
+              <p>
+                View generated pricing & margin
+                quotations.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div
+            className="info-card admin-action-card"
+            onClick={() =>
+              handleNavClick("Pricing & Margin")
+            }
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" ||
+                e.key === " "
+              ) {
+                handleNavClick("Pricing & Margin");
+              }
+            }}
+          >
+
+            <div className="info-card-icon">
+              %
+            </div>
+
+            <div>
+
+              <h3>
+                Pricing & Margin
+              </h3>
+
+              <p>
+                Monitor pricing and margin agent data.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div
+            className="info-card admin-action-card"
+            onClick={() =>
+              handleNavClick("Route Activity")
+            }
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" ||
+                e.key === " "
+              ) {
+                handleNavClick("Route Activity");
+              }
+            }}
+          >
+
+            <div className="info-card-icon">
+              ◈
+            </div>
+
+            <div>
+
+              <h3>
+                Route Activity
+              </h3>
+
+              <p>
+                Review recent route analyses across all
+                users.
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+    );
+  };
+
+  // ==========================================
+  // ADMIN USERS
+  // ==========================================
+
+  const renderAdminUsers = () => {
+    return (
+      <section className="results-screen page-view">
+
+        <div className="results-header">
+
+          <div>
+
+            <button
+              className="back-button"
+              type="button"
+              onClick={() =>
+                handleNavClick("Admin Dashboard")
+              }
+            >
+              ← Back to Admin Dashboard
+            </button>
+
+            <span className="section-label">
+              ADMIN
+            </span>
+
+            <h1>
+              Registered Users
+            </h1>
+
+            <p>
+              View registered platform users. Passwords
+              are never displayed.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* SEARCH */}
+
+        <div className="admin-users-toolbar">
+
+          <div className="admin-search-box">
+
+            <span className="admin-search-icon">
+              ⌕
+            </span>
+
+            <input
+              type="text"
+              value={adminUserSearch}
+              onChange={(e) =>
+                handleAdminUserSearch(
+                  e.target.value
+                )
+              }
+              placeholder="Search by name or contact..."
+            />
+
+          </div>
+
+          <span className="admin-users-count">
+            {adminUsers.length} user
+            {adminUsers.length !== 1 ? "s" : ""}
+          </span>
+
+        </div>
+
+        {/* ERROR */}
+
+        {adminUsersError && (
+          <div className="error-message">
+            {adminUsersError}
+          </div>
+        )}
+
+        {/* LOADING */}
+
+        {adminUsersLoading && (
+          <div className="loading-message">
+            <span className="loading-spinner"></span>
+            Loading users...
+          </div>
+        )}
+
+        {/* EMPTY */}
+
+        {!adminUsersLoading &&
+          !adminUsersError &&
+          adminUsers.length === 0 && (
+            <div className="history-empty">
+
+              <div className="history-empty-icon">
+                ▽
+              </div>
+
+              <h3>
+                No users found.
+              </h3>
+
+              <p>
+                No registered users match your search.
+              </p>
+
+            </div>
+          )}
+
+        {/* USERS TABLE */}
+
+        {!adminUsersLoading &&
+          !adminUsersError &&
+          adminUsers.length > 0 && (
+            <div className="comparison-section">
+
+              <div className="table-wrapper">
+
+                <table className="route-table admin-table">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>Name</th>
+                      <th>Contact</th>
+                      <th>Role</th>
+                      <th>Created</th>
+                      <th>Status</th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {adminUsers.map((item) => (
+                      <tr key={item.id}>
+
+                        <td>
+                          <div className="admin-user-cell">
+                            <span className="admin-user-avatar">
+                              {getProfileInitials(
+                                item.name ||
+                                  item.contact
+                              )}
+                            </span>
+                            <strong>
+                              {item.name || "-"}
+                            </strong>
+                          </div>
+                        </td>
+
+                        <td>
+                          {item.contact || "-"}
+                        </td>
+
+                        <td>
+                          {adminRoleBadge(item.role)}
+                        </td>
+
+                        <td>
+                          <span className="history-date">
+                            {formatAdminDate(
+                              item.created_at
+                            )}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span
+                            className={
+                              item.verified
+                                ? "admin-verified"
+                                : "admin-unverified"
+                            }
+                          >
+                            {item.verified
+                              ? "Verified"
+                              : "Unverified"}
+                          </span>
+                        </td>
+
+                      </tr>
+                    ))}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            </div>
+          )}
+
+      </section>
+    );
+  };
+
+  // ==========================================
+  // ADMIN ROUTE ACTIVITY
+  // ==========================================
+
+  const renderAdminActivity = () => {
+    return (
+      <section className="results-screen page-view">
+
+        <div className="results-header">
+
+          <div>
+
+            <button
+              className="back-button"
+              type="button"
+              onClick={() =>
+                handleNavClick("Admin Dashboard")
+              }
+            >
+              ← Back to Admin Dashboard
+            </button>
+
+            <span className="section-label">
+              ADMIN
+            </span>
+
+            <h1>
+              Route Activity
+            </h1>
+
+            <p>
+              Route analyses performed across all users.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* ERROR */}
+
+        {adminActivityError && (
+          <div className="error-message">
+            {adminActivityError}
+          </div>
+        )}
+
+        {/* LOADING */}
+
+        {adminActivityLoading && (
+          <div className="loading-message">
+            <span className="loading-spinner"></span>
+            Loading route activity...
+          </div>
+        )}
+
+        {/* EMPTY */}
+
+        {!adminActivityLoading &&
+          !adminActivityError &&
+          adminActivity.length === 0 && (
+            <div className="history-empty">
+
+              <div className="history-empty-icon">
+                ◈
+              </div>
+
+              <h3>
+                No route activity yet.
+              </h3>
+
+              <p>
+                Route analyses will appear here as
+                users use the platform.
+              </p>
+
+            </div>
+          )}
+
+        {/* ACTIVITY TABLE */}
+
+        {!adminActivityLoading &&
+          !adminActivityError &&
+          adminActivity.length > 0 && (
+            <div className="comparison-section">
+
+              <div className="table-wrapper">
+
+                <table className="route-table admin-table">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>User</th>
+                      <th>Origin</th>
+                      <th>Destination</th>
+                      <th>Cargo</th>
+                      <th>Route</th>
+                      <th>Transit</th>
+                      <th>Distance</th>
+                      <th>Tranships</th>
+                      <th>Score</th>
+                      <th>Date</th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {adminActivity.map((item) => (
+                      <tr
+                        key={item.record_id}
+                        className="history-row"
+                      >
+
+                        <td>
+                          {item.user_contact ||
+                            "Unknown user"}
+                        </td>
+
+                        <td>
+                          {item.origin || "-"}
+                        </td>
+
+                        <td>
+                          {item.destination || "-"}
+                        </td>
+
+                        <td>
+                          {item.cargo_type || "-"}
+                          {item.cargo_subtype
+                            ? ` / ${item.cargo_subtype}`
+                            : ""}
+                        </td>
+
+                        <td>
+
+                          <div className="history-route-cell">
+
+                            <strong className="history-route-id">
+                              {item.route_id || "-"}
+                            </strong>
+
+                            <span className="history-route-name">
+                              {item.route_name ||
+                                "Recommended route"}
+                            </span>
+
+                          </div>
+
+                        </td>
+
+                        <td>
+                          {item.transit_days != null
+                            ? `${item.transit_days}d`
+                            : "-"}
+                        </td>
+
+                        <td>
+                          {item.distance_nm != null
+                            ? `${Number(item.distance_nm).toLocaleString()} nm`
+                            : "-"}
+                        </td>
+
+                        <td>
+                          {item.transshipments ?? "-"}
+                        </td>
+
+                        <td>
+                          {item.route_score != null
+                            ? Number(item.route_score).toFixed(2)
+                            : "-"}
+                        </td>
+
+                        <td>
+
+                          <span className="history-date">
+                            {formatAdminDate(
+                              item.created_at
+                            )}
+                          </span>
+
+                        </td>
+
+                      </tr>
+                    ))}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            </div>
+          )}
+
+      </section>
+    );
+  };
+
+  // ==========================================
+  // ADMIN QUOTATIONS
+  // ==========================================
+
+  const renderAdminQuotations = () => {
+    return (
+      <section className="results-screen page-view">
+
+        <div className="results-header">
+
+          <div>
+
+            <button
+              className="back-button"
+              type="button"
+              onClick={() =>
+                handleNavClick("Admin Dashboard")
+              }
+            >
+              ← Back to Admin Dashboard
+            </button>
+
+            <span className="section-label">
+              ADMIN
+            </span>
+
+            <h1>
+              Quotations
+            </h1>
+
+            <p>
+              Pricing and margin quotations generated
+              across the platform.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* ERROR */}
+
+        {adminQuotationsError && (
+          <div className="error-message">
+            {adminQuotationsError}
+          </div>
+        )}
+
+        {/* LOADING */}
+
+        {adminQuotationsLoading && (
+          <div className="loading-message">
+            <span className="loading-spinner"></span>
+            Loading quotations...
+          </div>
+        )}
+
+        {/* EMPTY */}
+
+        {!adminQuotationsLoading &&
+          !adminQuotationsError &&
+          adminQuotations.length === 0 && (
+            <div className="history-empty">
+
+              <div className="history-empty-icon">
+                ❝
+              </div>
+
+              <h3>
+                No quotations yet.
+              </h3>
+
+              <p>
+                Generated quotations will appear here
+                as users generate them.
+              </p>
+
+            </div>
+          )}
+
+        {/* QUOTATIONS TABLE */}
+
+        {!adminQuotationsLoading &&
+          !adminQuotationsError &&
+          adminQuotations.length > 0 && (
+            <div className="comparison-section">
+
+              <div className="table-wrapper">
+
+                <table className="route-table admin-table">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>User</th>
+                      <th>Origin</th>
+                      <th>Destination</th>
+                      <th>Cargo</th>
+                      <th>Containers</th>
+                      <th>Route</th>
+                      <th>Base Freight</th>
+                      <th>Operating Cost</th>
+                      <th>Cost</th>
+                      <th>Selling Price</th>
+                      <th>Profit</th>
+                      <th>Margin</th>
+                      <th>Date</th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {adminQuotations.map((item) => (
+                      <tr
+                        key={item.record_id}
+                        className="history-row"
+                      >
+
+                        <td>
+                          {item.user_contact ||
+                            "Unknown user"}
+                        </td>
+
+                        <td>
+                          {item.origin || "-"}
+                        </td>
+
+                        <td>
+                          {item.destination || "-"}
+                        </td>
+
+                        <td>
+                          {item.cargo_type || "-"}
+                          {item.cargo_subtype
+                            ? ` / ${item.cargo_subtype}`
+                            : ""}
+                        </td>
+
+                        <td>
+                          {item.containers ?? "-"}
+                        </td>
+
+                        <td>
+                          <div className="history-route-cell">
+                            <strong className="history-route-id">
+                              {item.route_id || "-"}
+                            </strong>
+                            <span className="history-route-name">
+                              {item.route_name ||
+                                "Recommended route"}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td>
+                          {formatMoney(
+                            item.pricing?.base_freight_usd
+                          )}
+                        </td>
+
+                        <td>
+                          {formatMoney(
+                            item.pricing?.operating_cost_usd
+                          )}
+                        </td>
+
+                        <td>
+                          {formatMoney(
+                            item.pricing?.demand_adjusted_cost_usd
+                          )}
+                        </td>
+
+                        <td>
+                          {formatMoney(
+                            item.margin
+                              ?.recommended_selling_price_usd
+                          )}
+                        </td>
+
+                        <td>
+                          {formatMoney(
+                            item.margin
+                              ?.expected_profit_usd
+                          )}
+                        </td>
+
+                        <td>
+                          {formatPercent(
+                            item.margin
+                              ?.target_margin_percent
+                          )}
+                        </td>
+
+                        <td>
+
+                          <span className="history-date">
+                            {formatAdminDate(
+                              item.created_at
+                            )}
+                          </span>
+
+                        </td>
+
+                      </tr>
+                    ))}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            </div>
+          )}
+
+      </section>
+    );
+  };
+
+// ==========================================
+  // ADMIN SHIPMENTS
+  // ==========================================
+
+  const renderAdminShipments = () => {
+    return (
+      <section className="results-screen page-view">
+
+        <div className="results-header">
+
+          <div>
+
+            <button
+              className="back-button"
+              type="button"
+              onClick={() =>
+                handleNavClick("Admin Dashboard")
+              }
+            >
+              ← Back to Admin Dashboard
+            </button>
+
+            <span className="section-label">
+              ADMIN
+            </span>
+
+            <h1>
+              Shipments
+            </h1>
+
+            <p>
+              Manage shipment workflow statuses.
+              Only forward status transitions are
+              permitted.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* STATUS FILTER */}
+
+        <div className="admin-users-toolbar">
+
+          <div className="admin-search-box">
+
+            <select
+              value={adminShipmentFilter}
+              onChange={(e) =>
+                handleAdminShipmentFilter(
+                  e.target.value
+                )
+              }
+              className="admin-filter-select"
+            >
+              <option value="">
+                All Statuses
+              </option>
+              {(adminShipmentStatuses.length
+                ? adminShipmentStatuses
+                : shipmentStatusFlow
+              ).map((s) => (
+                <option value={s} key={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+
+          </div>
+
+          <span className="admin-users-count">
+            {adminShipments.length} shipment
+            {adminShipments.length !== 1
+              ? "s"
+              : ""}
+          </span>
+
+        </div>
+
+        {/* SUCCESS MESSAGE */}
+
+        {adminShipmentMessage && (
+          <div className="admin-shipment-success">
+            {adminShipmentMessage}
+          </div>
+        )}
+
+        {/* ERROR MESSAGE */}
+
+        {adminShipmentMessageError && (
+          <div className="error-message">
+            {adminShipmentMessageError}
+          </div>
+        )}
+
+        {adminShipmentsError && (
+          <div className="error-message">
+            {adminShipmentsError}
+          </div>
+        )}
+
+        {/* LOADING */}
+
+        {adminShipmentsLoading && (
+          <div className="loading-message">
+            <span className="loading-spinner"></span>
+            Loading shipments...
+          </div>
+        )}
+
+        {/* EMPTY */}
+
+        {!adminShipmentsLoading &&
+          !adminShipmentsError &&
+          !adminShipmentMessageError &&
+          adminShipments.length === 0 && (
+            <div className="history-empty">
+
+              <div className="history-empty-icon">
+                ▤
+              </div>
+
+              <h3>
+                No shipments found.
+              </h3>
+
+              <p>
+                Shipments are created when users
+                accept a quotation.
+              </p>
+
+            </div>
+          )}
+
+        {/* SHIPMENTS TABLE */}
+
+        {!adminShipmentsLoading &&
+          !adminShipmentsError &&
+          adminShipments.length > 0 && (
+            <div className="comparison-section">
+
+              <div className="table-wrapper">
+
+                <table className="route-table admin-table">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>Shipment ID</th>
+                      <th>User</th>
+                      <th>Origin</th>
+                      <th>Destination</th>
+                      <th>Cargo</th>
+                      <th>Containers</th>
+                      <th>Route</th>
+                      <th>Status</th>
+                      <th>Created</th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {adminShipments.map((item) => (
+                      <tr
+                        key={item.shipment_id}
+                        className={
+                          updatingShipmentId ===
+                          item.shipment_id
+                            ? "updating-row"
+                            : ""
+                        }
+                      >
+
+                        <td>
+                          <strong>
+                            {item.shipment_id}
+                          </strong>
+                        </td>
+
+                        <td>
+                          {item.user_contact ||
+                            item.user_name ||
+                            "-"}
+                        </td>
+
+                        <td>
+                          {item.origin || "-"}
+                        </td>
+
+                        <td>
+                          {item.destination || "-"}
+                        </td>
+
+                        <td>
+                          {item.cargo_type || "-"}
+                          {item.cargo_subtype
+                            ? ` / ${item.cargo_subtype}`
+                            : ""}
+                        </td>
+
+                        <td>
+                          {item.containers ?? "-"}
+                        </td>
+
+                        <td>
+                          <div className="history-route-cell">
+                            <strong className="history-route-id">
+                              {item.route_id || "-"}
+                            </strong>
+                            <span className="history-route-name">
+                              {item.route_name || "-"}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td>
+                          <select
+                            className="admin-status-select"
+                            value={item.status || ""}
+                            disabled={
+                              updatingShipmentId ===
+                              item.shipment_id
+                            }
+                            onChange={(e) =>
+                              handleAdminShipmentStatusChange(
+                                item,
+                                e.target.value
+                              )
+                            }
+                          >
+                            {(
+                              adminShipmentStatuses.length
+                                ? adminShipmentStatuses
+                                : shipmentStatusFlow
+                            ).map((s) => (
+                              <option value={s} key={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+
+                        <td>
+                          <span className="history-date">
+                            {formatAdminDate(
+                              item.created_at
+                            )}
+                          </span>
+                        </td>
+
+                      </tr>
+                    ))}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            </div>
+          )}
+
+      </section>
+    );
+  };
+
+  // ==========================================
+  // ADMIN PRICING & MARGIN
+  // ==========================================
+
+  const renderAdminPricing = () => {
+    return (
+      <section className="results-screen page-view">
+
+        <div className="results-header">
+
+          <div>
+
+            <button
+              className="back-button"
+              type="button"
+              onClick={() =>
+                handleNavClick("Admin Dashboard")
+              }
+            >
+              ← Back to Admin Dashboard
+            </button>
+
+            <span className="section-label">
+              ADMIN
+            </span>
+
+            <h1>
+              Pricing & Margin
+            </h1>
+
+            <p>
+              Pricing Agent and Margin Agent data
+              for platform monitoring. Pricing is
+              generated automatically when quotations
+              are created.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* ERROR */}
+
+        {adminPricingError && (
+          <div className="error-message">
+            {adminPricingError}
+          </div>
+        )}
+
+        {/* LOADING */}
+
+        {adminPricingLoading && (
+          <div className="loading-message">
+            <span className="loading-spinner"></span>
+            Loading pricing & margin data...
+          </div>
+        )}
+
+        {/* EMPTY */}
+
+        {!adminPricingLoading &&
+          !adminPricingError &&
+          adminPricing.length === 0 && (
+            <div className="history-empty">
+
+              <div className="history-empty-icon">
+                %
+              </div>
+
+              <h3>
+                No pricing data available.
+              </h3>
+
+              <p>
+                Pricing data will appear here once
+                routes and pricing data are
+                populated.
+              </p>
+
+            </div>
+          )}
+
+        {/* PRICING TABLE */}
+
+        {!adminPricingLoading &&
+          !adminPricingError &&
+          adminPricing.length > 0 && (
+            <div className="comparison-section">
+
+              <div className="table-wrapper">
+
+                <table className="route-table admin-table">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>Route</th>
+                      <th>Base Freight</th>
+                      <th>Fuel Surcharge</th>
+                      <th>Port Charge</th>
+                      <th>Risk Surcharge</th>
+                      <th>Demand Factor</th>
+                      <th>Target Margin</th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {adminPricing.map((item) => (
+                      <tr
+                        key={item.pricing_id}
+                        className="history-row"
+                      >
+
+                        <td>
+                          <div className="history-route-cell">
+                            <strong className="history-route-id">
+                              {item.route_id || "-"}
+                            </strong>
+                            <span className="history-route-name">
+                              {item.route_name ||
+                                `${item.origin || ""} → ${item.destination || ""}`}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td>
+                          {formatMoney(
+                            item.base_freight_usd
+                          )}
+                        </td>
+
+                        <td>
+                          {formatMoney(
+                            item.fuel_surcharge_usd
+                          )}
+                        </td>
+
+                        <td>
+                          {formatMoney(
+                            item.port_charge_usd
+                          )}
+                        </td>
+
+                        <td>
+                          {formatMoney(
+                            item.risk_surcharge_usd
+                          )}
+                        </td>
+
+                        <td>
+                          {Number(
+                            item.demand_factor
+                          ).toFixed(2) || "-"}
+                        </td>
+
+                        <td>
+                          {formatPercent(
+                            item.target_margin_percent
+                          )}
+                        </td>
+
+                      </tr>
+                    ))}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            </div>
+          )}
+
+      </section>
+    );
+  };
+
+  // ==========================================
   // MAIN LAYOUT
   // ==========================================
 
@@ -3478,7 +6509,9 @@ function App() {
             </strong>
 
             <span>
-              Freight Intelligence
+              {isAdmin
+                ? "Admin Dashboard"
+                : "Freight Intelligence"}
             </span>
 
           </div>
@@ -3487,149 +6520,270 @@ function App() {
 
         <nav className="sidebar-nav">
 
-          <button
-            className={
-              activeNav === "Dashboard"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            type="button"
-            onClick={() =>
-              handleNavClick("Dashboard")
-            }
-          >
+          {isAdmin ? (
+            /* ----------------------------------------
+               ADMIN NAVIGATION
+               ---------------------------------------- */
 
-            <span className="nav-icon">
-              ▦
-            </span>
+            <>
+              <button
+                className={
+                  activeNav === "Admin Dashboard"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Admin Dashboard")
+                }
+              >
 
-            Dashboard
+                <span className="nav-icon">
+                  ▦
+                </span>
 
-          </button>
+                Admin Dashboard
 
-          <button
-            className={
-              activeNav === "Routes"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            type="button"
-            onClick={() =>
-              handleNavClick("Routes")
-            }
-          >
+              </button>
 
-            <span className="nav-icon">
-              ⇢
-            </span>
+              <button
+                className={
+                  activeNav === "Users"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Users")
+                }
+              >
 
-            Route Intelligence
+                <span className="nav-icon">
+                  ▽
+                </span>
 
-          </button>
+                Users
 
-          <button
-            className={
-              activeNav === "Route History"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            type="button"
-            onClick={() =>
-              handleNavClick("Route History")
-            }
-          >
+              </button>
 
-            <span className="nav-icon">
-              ◇
-            </span>
+              <button
+                className={
+                  activeNav === "Shipments"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Shipments")
+                }
+              >
 
-            Route History
+                <span className="nav-icon">
+                  ▤
+                </span>
 
-          </button>
+                Shipments
 
-          <button
-            className={
-              activeNav === "Shipments"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            type="button"
-            onClick={() =>
-              handleNavClick("Shipments")
-            }
-          >
+              </button>
 
-            <span className="nav-icon">
-              ▤
-            </span>
+              <button
+                className={
+                  activeNav === "Quotations"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Quotations")
+                }
+              >
 
-            Shipments
+                <span className="nav-icon">
+                  ❝
+                </span>
 
-          </button>
+                Quotations
 
-          <button
-            className={
-              activeNav === "Analytics"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            type="button"
-            onClick={() =>
-              handleNavClick("Analytics")
-            }
-          >
+              </button>
 
-            <span className="nav-icon">
-              ◒
-            </span>
+              <button
+                className={
+                  activeNav === "Pricing & Margin"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Pricing & Margin")
+                }
+              >
 
-            Analytics
+                <span className="nav-icon">
+                  %
+                </span>
 
-          </button>
+                Pricing & Margin
 
-          <button
-            className={
-              activeNav === "Quotation"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            type="button"
-            onClick={() =>
-              handleNavClick("Quotation")
-            }
-          >
+              </button>
 
-            <span className="nav-icon">
-              ❝
-            </span>
+              <button
+                className={
+                  activeNav === "Route Activity"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Route Activity")
+                }
+              >
 
-            Quotation
+                <span className="nav-icon">
+                  ◈
+                </span>
 
-          </button>
+                Route Activity
 
-          <button
-            className={
-              activeNav === "How to Use"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            type="button"
-            onClick={() =>
-              handleNavClick("How to Use")
-            }
-          >
+              </button>
+            </>
+          ) : (
+            /* ----------------------------------------
+               USER NAVIGATION
+               ---------------------------------------- */
 
-            <span className="nav-icon">
-              ⓘ
-            </span>
+            <>
+              <button
+                className={
+                  activeNav === "Dashboard"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Dashboard")
+                }
+              >
 
-            How to Use
+                <span className="nav-icon">
+                  ▦
+                </span>
 
-          </button>
+                Dashboard
+
+              </button>
+
+              <button
+                className={
+                  activeNav === "Routes"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Routes")
+                }
+              >
+
+                <span className="nav-icon">
+                  ⇢
+                </span>
+
+                Route Intelligence
+
+              </button>
+
+              <button
+                className={
+                  activeNav === "Route History"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Route History")
+                }
+              >
+
+                <span className="nav-icon">
+                  ◇
+                </span>
+
+                Route History
+
+              </button>
+
+              <button
+                className={
+                  activeNav === "Quotation"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Quotation")
+                }
+              >
+
+                <span className="nav-icon">
+                  ❝
+                </span>
+
+                Quotation
+
+              </button>
+
+              <button
+                className={
+                  activeNav === "My Shipments"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("My Shipments")
+                }
+              >
+
+                <span className="nav-icon">
+                  ▤
+                </span>
+
+                My Shipments
+
+              </button>
+
+              <button
+                className={
+                  activeNav === "How to Use"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("How to Use")
+                }
+              >
+
+                <span className="nav-icon">
+                  ⓘ
+                </span>
+
+                How to Use
+
+              </button>
+            </>
+          )}
 
         </nav>
 
         <div className="sidebar-bottom">
+
+          {isAdmin && (
+            <div className="sidebar-admin-label">
+              <span className="administrator-dot"></span>
+              Administrator
+            </div>
+          )}
 
           <button
             className="logout-button"
@@ -3698,7 +6852,7 @@ function App() {
                 </strong>
 
                 <span className="profile-role">
-                  Maritime Analyst
+                  {profileRoleSubLabel}
                 </span>
 
               </span>
@@ -3735,7 +6889,7 @@ function App() {
 
                     <span>
                       {profileContact ||
-                        "Maritime Analyst"}
+                        profileRoleSubLabel}
                     </span>
 
                   </div>
@@ -3751,7 +6905,7 @@ function App() {
                     </span>
 
                     <strong>
-                      Maritime Analyst
+                      {profileRoleLabel}
                     </strong>
 
                   </div>
@@ -3805,8 +6959,32 @@ function App() {
           {view === "quotation" &&
             renderQuotation()}
 
+          {view === "shipments" &&
+            renderShipments()}
+
+          {view === "shipment-details" &&
+            renderShipmentDetails()}
+
           {view === "howto" &&
             renderHowToUse()}
+
+          {isAdmin && view === "admin-home" &&
+            renderAdminDashboard()}
+
+          {isAdmin && view === "admin-users" &&
+            renderAdminUsers()}
+
+          {isAdmin && view === "admin-shipments" &&
+            renderAdminShipments()}
+
+          {isAdmin && view === "admin-pricing" &&
+            renderAdminPricing()}
+
+          {isAdmin && view === "admin-activity" &&
+            renderAdminActivity()}
+
+          {isAdmin && view === "admin-quotations" &&
+            renderAdminQuotations()}
 
         </div>
 
