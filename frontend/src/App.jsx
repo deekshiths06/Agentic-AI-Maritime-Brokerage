@@ -348,7 +348,7 @@ function App() {
     const loadLocations = async () => {
       try {
         const response = await fetch(
-          "http://127.0.0.1:8000/api/routes/locations"
+          "/api/routes/locations"
         );
 
         if (!response.ok) {
@@ -367,7 +367,7 @@ function App() {
     const loadCargoSubtypes = async () => {
       try {
         const response = await fetch(
-          "http://127.0.0.1:8000/api/routes/cargo-subtypes"
+          "/api/routes/cargo-subtypes"
         );
 
         if (!response.ok) {
@@ -496,7 +496,7 @@ function App() {
       }
 
       const response = await fetch(
-        `http://127.0.0.1:8000/api/routes/history?${params}`,
+        `/api/routes/history?${params}`,
         { headers: { ...getAuthHeaders() } }
       );
 
@@ -553,7 +553,7 @@ function App() {
       });
 
       const response = await fetch(
-        `http://127.0.0.1:8000/api/routes/history/${recordId}?${params}`,
+        `/api/routes/history/${recordId}?${params}`,
         {
           method: "DELETE",
           headers: { ...getAuthHeaders() },
@@ -614,7 +614,7 @@ function App() {
       });
 
       const response = await fetch(
-        `http://127.0.0.1:8000/api/routes/history?${params}`,
+        `/api/routes/history?${params}`,
         {
           method: "DELETE",
           headers: { ...getAuthHeaders() },
@@ -677,7 +677,7 @@ function App() {
       });
 
       const response = await fetch(
-        `http://127.0.0.1:8000/api/routes/cargo-subtypes?${params}`
+        `/api/routes/cargo-subtypes?${params}`
       );
 
       if (!response.ok) {
@@ -819,7 +819,7 @@ function App() {
       setLoading(true);
 
       const response = await fetch(
-        "http://127.0.0.1:8000/api/routes/analyze",
+        "/api/routes/analyze",
         {
           method: "POST",
           headers: {
@@ -903,7 +903,7 @@ function App() {
       setQuotationLoading(true);
 
       const response = await fetch(
-        "http://127.0.0.1:8000/api/quotations/generate",
+        "/api/quotations/generate",
         {
           method: "POST",
           headers: {
@@ -989,7 +989,7 @@ function App() {
       }
 
       const response = await fetch(
-        `http://127.0.0.1:8000/api/shipments?${params}`,
+        `/api/shipments?${params}`,
         { headers: { ...getAuthHeaders() } }
       );
 
@@ -1052,7 +1052,7 @@ function App() {
       const query = params.toString();
 
       const response = await fetch(
-        `http://127.0.0.1:8000/api/shipments/${encodeURIComponent(
+        `/api/shipments/${encodeURIComponent(
           shipmentId
         )}${query ? `?${query}` : ""}`,
         { headers: { ...getAuthHeaders() } }
@@ -1110,7 +1110,7 @@ function App() {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/quotations/${encodeURIComponent(
+        `/api/quotations/${encodeURIComponent(
           quotationId
         )}/accept`,
         {
@@ -1194,7 +1194,7 @@ function App() {
 
     try {
       const response = await adminFetch(
-        "http://127.0.0.1:8000/api/admin/stats"
+        "/api/admin/stats"
       );
 
       const data = await response
@@ -1251,7 +1251,7 @@ function App() {
       const query = params.toString();
 
       const response = await adminFetch(
-        `http://127.0.0.1:8000/api/admin/users${query ? `?${query}` : ""}`
+        `/api/admin/users${query ? `?${query}` : ""}`
       );
 
       const data = await response
@@ -1291,7 +1291,7 @@ function App() {
 
     try {
       const response = await adminFetch(
-        "http://127.0.0.1:8000/api/admin/route-activity"
+        "/api/admin/route-activity"
       );
 
       const data = await response
@@ -1331,7 +1331,7 @@ function App() {
 
     try {
       const response = await adminFetch(
-        "http://127.0.0.1:8000/api/admin/quotations"
+        "/api/admin/quotations"
       );
 
       const data = await response
@@ -1386,7 +1386,7 @@ function App() {
       const query = params.toString();
 
       const response = await adminFetch(
-        `http://127.0.0.1:8000/api/admin/shipments${query ? `?${query}` : ""}`
+        `/api/admin/shipments${query ? `?${query}` : ""}`
       );
 
       const data = await response
@@ -1448,7 +1448,7 @@ function App() {
 
     try {
       const response = await adminFetch(
-        `http://127.0.0.1:8000/api/admin/shipments/${encodeURIComponent(
+        `/api/admin/shipments/${encodeURIComponent(
           shipment.shipment_id
         )}/status`,
         {
@@ -1509,7 +1509,7 @@ function App() {
 
     try {
       const response = await adminFetch(
-        "http://127.0.0.1:8000/api/admin/pricing"
+        "/api/admin/pricing"
       );
 
       const data = await response
@@ -1549,7 +1549,7 @@ function App() {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/feedback",
+        "/api/feedback",
         { headers: { ...getAuthHeaders() } }
       );
 
@@ -1611,7 +1611,7 @@ function App() {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/feedback",
+        "/api/feedback",
         {
           method: "POST",
           headers: {
@@ -1670,7 +1670,7 @@ function App() {
 
     try {
       const response = await adminFetch(
-        "http://127.0.0.1:8000/api/admin/feedback"
+        "/api/admin/feedback"
       );
 
       const data = await response
@@ -1710,7 +1710,7 @@ function App() {
 
     try {
       const response = await adminFetch(
-        "http://127.0.0.1:8000/api/admin/invitations"
+        "/api/admin/invitations"
       );
 
       const data = await response
@@ -1758,7 +1758,7 @@ function App() {
 
     try {
       const response = await adminFetch(
-        "http://127.0.0.1:8000/api/admin/invitations",
+        "/api/admin/invitations",
         {
           method: "POST",
           headers: {
@@ -1798,15 +1798,31 @@ function App() {
     }
   };
 
+  const buildInviteLink = (token) => {
+    if (!token) return "";
+
+    const host = window.location.hostname;
+    const isLoopback =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1";
+
+    const origin =
+      isLoopback && inviteResult?.frontend_origin
+        ? inviteResult.frontend_origin
+        : window.location.origin;
+
+    return `${origin}/accept-invitation.html?token=${encodeURIComponent(
+      token
+    )}`;
+  };
+
   const copyInviteLink = () => {
     const token = inviteResult?.token;
 
     if (!token) return;
 
-    const link =
-      `${window.location.origin}/accept-invitation.html?token=${encodeURIComponent(
-        token
-      )}`;
+    const link = buildInviteLink(token);
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard
@@ -5228,17 +5244,27 @@ function App() {
   const formatAdminDate = (value) => {
     if (!value) return "-";
 
-    if (value instanceof Date) {
-      return value.toLocaleString();
-    }
+    const date =
+      value instanceof Date
+        ? value
+        : typeof value === "string"
+        ? new Date(value)
+        : null;
 
-    if (typeof value === "string") {
-      const date = new Date(value);
-      if (isNaN(date.getTime())) return value;
-      return date.toLocaleString();
-    }
+    if (!date || isNaN(date.getTime())) return String(value);
 
-    return String(value);
+    const day = date.getDate();
+    const month = date.toLocaleString("en", {
+      month: "short",
+    });
+    const year = date.getFullYear();
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const meridiem = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+
+    return `${day} ${month} ${year}, ${hours}:${minutes} ${meridiem}`;
   };
 
   const formatMoney = (value) => {
@@ -7822,8 +7848,9 @@ function App() {
                   Admin Invitation Generated
                 </h3>
                 <p>
-                  Copy and share the link below with the new
-                  admin. The invitation expires in 24 hours.
+                  Invitation generated. Copy this link
+                  and send it to the invited person.
+                  The invitation expires in 24 hours.
                 </p>
               </div>
 
@@ -7861,7 +7888,7 @@ function App() {
 
               <div className="invitation-token-readout">
                 <code>
-                  {invitationLink}
+                  {buildInviteLink(inviteResult?.token)}
                 </code>
               </div>
 

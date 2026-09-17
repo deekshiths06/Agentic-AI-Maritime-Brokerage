@@ -8,10 +8,11 @@ import jwt
 import pymongo
 import re
 import os
+import socket
 import secrets
 import hashlib
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 
@@ -129,6 +130,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173"
     ],
+    allow_origin_regex=r"^http://.*:5173$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -459,8 +461,10 @@ class InvitationCreate(BaseModel):
 
 class InvitationAccept(BaseModel):
     token: str
-    name: str
+    email: str = ""
+    name: str = ""
     password: str
+    confirm_password: str = ""
 
 
 class InvitationVerify(BaseModel):
@@ -835,7 +839,7 @@ def _history_document(result, request, quotation=None):
         "total_available_routes": result.get(
             "total_available_routes", 0
         ),
-        "created_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc)
     }
 
     if quotation:
@@ -913,6 +917,16 @@ def _save_route_history(
 def _serialize_history_record(record):
 
     created_at = record.get("created_at")
+
+    # Datetimes are stored in UTC. Older records may be naive
+    # UTC datetimes; attach timezone info so the serialized
+    # value always carries an explicit UTC offset and the
+    # frontend can convert it to local time correctly.
+    if created_at is not None and created_at.tzinfo is None:
+
+        created_at = created_at.replace(
+            tzinfo=timezone.utc
+        )
 
     return {
         "record_id": str(record["_id"]),
@@ -2176,6 +2190,47 @@ def get_admin_feedback(
 
 INVITATION_EXPIRY_HOURS = 24
 
+# Frontend dev port (kept in sync with vite.config.js).
+FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", "5173"))
+
+# Optional override for the externally reachable frontend base URL.
+# If not set, the backend derives the laptop's LAN IP dynamically so
+# the invitation link works from other devices on the same network.
+FRONTEND_EXTERNAL_URL = os.getenv(
+    "FRONTEND_EXTERNAL_URL", ""
+).strip()
+
+
+def _get_lan_ip() -> str:
+    """Return this machine's LAN (non-loopback) IPv4 address."""
+
+    try:
+        with socket.socket(
+            socket.AF_INET, socket.SOCK_DGRAM
+        ) as sock:
+            sock.connect(("8.8.8.8", 80))
+            return sock.getsockname()[0]
+    except Exception:
+        pass
+
+    try:
+        return socket.gethostbyname(
+            socket.gethostname()
+        )
+    except Exception:
+        return "127.0.0.1"
+
+
+def get_frontend_origin() -> str:
+    """Externally reachable frontend origin used for invite links."""
+
+    if FRONTEND_EXTERNAL_URL:
+        return FRONTEND_EXTERNAL_URL.rstrip("/")
+
+    return "http://{}:{}".format(
+        _get_lan_ip(), FRONTEND_PORT
+    )
+
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(
@@ -2261,7 +2316,8 @@ def create_invitation(
             ),
             "contact": contact,
             "token": raw_token,
-            "expires_in_hours": INVITATION_EXPIRY_HOURS
+            "expires_in_hours": INVITATION_EXPIRY_HOURS,
+            "frontend_origin": get_frontend_origin()
         }
     }
 
@@ -2366,8 +2422,10 @@ def accept_invitation(
 ):
 
     token = request.token.strip()
+    email = request.email.strip()
     name = request.name.strip()
     password = request.password
+    confirm_password = request.confirm_password.strip()
 
     if not token:
 
@@ -2376,14 +2434,14 @@ def accept_invitation(
             detail="Invitation token is required."
         )
 
-    if not name or len(name) < 3:
+    validate_password(password)
+
+    if confirm_password and confirm_password != password:
 
         raise HTTPException(
             status_code=400,
-            detail="Please enter a valid full name."
+            detail="Passwords do not match."
         )
-
-    validate_password(password)
 
     token_hash = _hash_token(token)
 
@@ -2395,17 +2453,14 @@ def accept_invitation(
 
         raise HTTPException(
             status_code=404,
-            detail="Invalid invitation link."
+            detail="Invalid invitation."
         )
 
     if invitation.get("used", False):
 
         raise HTTPException(
             status_code=410,
-            detail=(
-                "This invitation has already been "
-                "used."
-            )
+            detail="This invitation has already been used."
         )
 
     expires_at = invitation.get("expires_at")
@@ -2421,6 +2476,17 @@ def accept_invitation(
         "invited_contact", ""
     )
 
+    if email:
+
+        email = normalize_contact(email)
+
+        if email != invited_contact:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Email does not match invitation."
+            )
+
     existing = users_collection.find_one({
         "contact": invited_contact
     })
@@ -2430,9 +2496,22 @@ def accept_invitation(
         raise HTTPException(
             status_code=400,
             detail=(
-                "An account with this contact "
-                "already exists."
+                "An account with this email already "
+                "exists."
             )
+        )
+
+    if not name:
+
+        name = invited_contact.split("@")[0] \
+            if "@" in invited_contact \
+            else invited_contact
+
+    if len(name) < 3:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a valid full name."
         )
 
     hashed_password = bcrypt.hashpw(

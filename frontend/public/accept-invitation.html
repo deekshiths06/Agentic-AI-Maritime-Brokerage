@@ -458,30 +458,14 @@
 
                 <div class="form-group">
 
-                    <label for="name">
-                        FULL NAME
-                    </label>
-
-                    <input
-                        type="text"
-                        id="name"
-                        placeholder="Enter your full name"
-                        autocomplete="name"
-                        required
-                    >
-
-                </div>
-
-                <div class="form-group">
-
                     <label for="contact">
-                        CONTACT (EMAIL OR MOBILE)
+                        EMAIL
                     </label>
 
                     <input
-                        type="text"
+                        type="email"
                         id="contact"
-                        placeholder="Email / mobile from the invitation"
+                        placeholder="Email from the invitation"
                         autocomplete="username"
                         required
                     >
@@ -569,6 +553,20 @@
 
             <!-- LOGIN LINK -->
 
+            <a
+                href="login.html"
+                class="accept-button"
+                id="goToLogin"
+                style="
+                    display: none;
+                    text-decoration: none;
+                    text-align: center;
+                    margin-top: 18px;
+                "
+            >
+                Go to Login
+            </a>
+
             <div class="login-link">
 
                 Already an admin?
@@ -593,7 +591,7 @@
 
 <script>
 
-    const API_URL = "http://127.0.0.1:8000";
+    const API_URL = "";
 
     const params =
         new URLSearchParams(window.location.search);
@@ -717,13 +715,6 @@
 
                 contactInput.value =
                     contactHint;
-
-                contactInput.setAttribute(
-                    "readonly",
-                    "readonly"
-                );
-
-                contactInput.style.color = "#8a9aaa";
             }
 
         } catch (error) {
@@ -751,9 +742,6 @@
 
             clearMessage();
 
-            const name =
-                document.getElementById("name").value.trim();
-
             const contact =
                 document.getElementById("contact").value.trim();
 
@@ -767,20 +755,10 @@
                VALIDATION
             --------------------------------------------- */
 
-            if (name.length < 3) {
-
-                showMessage(
-                    "Please enter your full name.",
-                    "error"
-                );
-
-                return;
-            }
-
             if (!contact) {
 
                 showMessage(
-                    "Please enter your contact email or mobile number.",
+                    "Please enter the invited email address.",
                     "error"
                 );
 
@@ -825,8 +803,9 @@
                         },
                         body: JSON.stringify({
                             token: token,
-                            name: name,
-                            password: password
+                            email: contact,
+                            password: password,
+                            confirm_password: confirmPassword
                         })
                     }
                 );
@@ -843,24 +822,19 @@
                 }
 
                 showMessage(
-                    data.message ||
-                    "Admin account created successfully. Redirecting to login...",
+                    "Admin account created successfully.",
                     "success"
                 );
 
                 showStatus(
-                    "Invitation accepted. Redirecting...",
+                    "Invitation accepted. Your account is ready.",
                     true
                 );
 
                 acceptForm.style.display = "none";
 
-                setTimeout(
-                    function() {
-                        window.location.href = "login.html";
-                    },
-                    1800
-                );
+                document.getElementById("goToLogin").style.display =
+                    "block";
 
             } catch (error) {
 
