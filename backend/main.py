@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pymongo import MongoClient
 from bson import ObjectId
 import bcrypt
@@ -8,6 +8,8 @@ import jwt
 import pymongo
 import re
 import os
+import secrets
+import hashlib
 import logging
 from datetime import datetime, timedelta
 
@@ -76,6 +78,39 @@ def ensure_database_indexes():
             "quotation_record_id"
         )
 
+        feedbacks_collection.create_index("user_id")
+
+        invitations_collection.create_index("token_hash")
+
+        invitations_collection.create_index(
+            "invited_contact"
+        )
+
+        # -------------------------------------------------
+        # LEGACY INDEX CLEANUP
+        # Older versions created unique, non-sparse indexes
+        # on "feedback_id" and "invitation_id", but no
+        # document ever sets those fields. MongoDB then
+        # treats every missing value as the same null key,
+        # so the second insert hits a duplicate-key error
+        # (HTTP 500). Drop them here so feedback and
+        # invitation submission work on existing databases.
+        # -------------------------------------------------
+
+        try:
+            feedbacks_collection.drop_index(
+                "feedback_id_1"
+            )
+        except Exception:
+            pass
+
+        try:
+            invitations_collection.drop_index(
+                "invitation_id_1"
+            )
+        except Exception:
+            pass
+
     except Exception as error:
 
         logger.warning(
@@ -132,6 +167,10 @@ route_history_collection = db["route_history"]
 shipments_collection = db["shipments"]
 
 counters_collection = db["counters"]
+
+feedbacks_collection = db["feedbacks"]
+
+invitations_collection = db["admin_invitations"]
 
 
 # ============================================================
@@ -405,6 +444,27 @@ class LoginRequest(BaseModel):
 
 class ShipmentStatusUpdate(BaseModel):
     status: str
+
+
+class FeedbackCreate(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    feedback_type: str
+    message: str
+
+
+class InvitationCreate(BaseModel):
+    invited_contact: str
+    invited_name: str = ""
+
+
+class InvitationAccept(BaseModel):
+    token: str
+    name: str
+    password: str
+
+
+class InvitationVerify(BaseModel):
+    token: str
 
 
 # ============================================================
@@ -1958,8 +2018,460 @@ def update_shipment_status(
 # ============================================================
 # ADMIN - PRICING & MARGIN
 # ============================================================
-# Read-only monitoring view of the existing pricing.csv
-# data joined with the route information from routes.csv.
+# FEEDBACK - HELPERS
+# ============================================================
+
+def _normalize_feedback_rating(value):
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _serialize_feedback(record):
+    created_at = record.get("created_at")
+
+    if isinstance(created_at, datetime):
+        created_at_text = created_at.isoformat()
+    elif isinstance(created_at, str):
+        created_at_text = created_at
+    else:
+        created_at_text = None
+
+    return {
+        "feedback_id": str(record["_id"]),
+        "user_id": record.get("user_id", ""),
+        "user_name": record.get("user_name", ""),
+        "user_contact": record.get("user_contact", ""),
+        "rating": _normalize_feedback_rating(
+            record.get("rating", 0)
+        ),
+        "feedback_type": record.get("feedback_type", ""),
+        "message": record.get("message", ""),
+        "created_at": created_at_text
+    }
+
+
+# ============================================================
+# FEEDBACK - SUBMIT
+# ============================================================
+# Any authenticated user can submit feedback.
+# ============================================================
+
+@app.post("/api/feedback")
+def submit_feedback(
+    request: FeedbackCreate,
+    current_user: dict = Depends(get_current_user)
+):
+
+    rating = request.rating
+    feedback_type = request.feedback_type.strip()
+    message = request.message.strip()
+
+    if rating < 1 or rating > 5:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Rating must be between 1 and 5."
+        )
+
+    if not feedback_type:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Feedback type is required."
+        )
+
+    if not message:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Feedback message is required."
+        )
+
+    feedback_doc = {
+        "user_id": current_user.get("user_id", ""),
+        "user_name": current_user.get("name", ""),
+        "user_contact": current_user.get("contact", ""),
+        "rating": rating,
+        "feedback_type": feedback_type,
+        "message": message,
+        "created_at": datetime.utcnow()
+    }
+
+    result = feedbacks_collection.insert_one(feedback_doc)
+
+    return {
+        "success": True,
+        "message": "Feedback submitted successfully.",
+        "feedback_id": str(result.inserted_id)
+    }
+
+
+# ============================================================
+# FEEDBACK - MY FEEDBACK
+# ============================================================
+# Returns only the current user's feedback.
+# ============================================================
+
+@app.get("/api/feedback")
+def get_my_feedback(
+    current_user: dict = Depends(get_current_user)
+):
+
+    records = (
+        feedbacks_collection
+        .find({"user_id": current_user.get("user_id", "")})
+        .sort("created_at", -1)
+        .limit(100)
+    )
+
+    return {
+        "success": True,
+        "feedback": [
+            _serialize_feedback(record)
+            for record in records
+        ]
+    }
+
+
+# ============================================================
+# ADMIN - FEEDBACK
+# ============================================================
+# Returns all feedback across the platform.
+# Protected by the admin role requirement.
+# ============================================================
+
+@app.get("/api/admin/feedback")
+def get_admin_feedback(
+    current_user: dict = Depends(require_admin)
+):
+
+    records = (
+        feedbacks_collection
+        .find({})
+        .sort("created_at", -1)
+        .limit(500)
+    )
+
+    return {
+        "success": True,
+        "feedback": [
+            _serialize_feedback(record)
+            for record in records
+        ]
+    }
+
+
+# ============================================================
+# INVITATION - HELPERS
+# ============================================================
+
+INVITATION_EXPIRY_HOURS = 24
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(
+        token.encode("utf-8")
+    ).hexdigest()
+
+
+def _serialize_invitation(record):
+
+    created_at = record.get("created_at")
+    expires_at = record.get("expires_at")
+
+    return {
+        "invitation_id": str(record["_id"]),
+        "contact": record.get("invited_contact", ""),
+        "created_by": record.get("created_by", ""),
+        "created_at": (
+            created_at.isoformat()
+            if created_at
+            else None
+        ),
+        "expires_at": (
+            expires_at.isoformat()
+            if expires_at
+            else None
+        ),
+        "used": record.get("used", False)
+    }
+
+
+# ============================================================
+# ADMIN - GENERATE INVITATION
+# ============================================================
+# Only admin can generate an invitation.
+# Returns the raw token once for the developer to copy.
+# The stored record only holds the SHA-256 hash.
+# ============================================================
+
+@app.post("/api/admin/invitations")
+def create_invitation(
+    request: InvitationCreate,
+    current_user: dict = Depends(require_admin)
+):
+
+    contact = request.invited_contact.strip()
+
+    if not contact:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Contact or email is required."
+        )
+
+    raw_token = secrets.token_urlsafe(48)
+
+    token_hash = _hash_token(raw_token)
+
+    now = datetime.utcnow()
+
+    invitation_doc = {
+        "token_hash": token_hash,
+        "invited_contact": contact.lower()
+            if "@" in contact
+            else contact,
+        "created_by": current_user.get("name", ""),
+        "created_at": now,
+        "expires_at": now + timedelta(
+            hours=INVITATION_EXPIRY_HOURS
+        ),
+        "used": False
+    }
+
+    result = invitations_collection.insert_one(
+        invitation_doc
+    )
+
+    return {
+        "success": True,
+        "message": "Invitation generated successfully.",
+        "invitation": {
+            "invitation_id": str(
+                result.inserted_id
+            ),
+            "contact": contact,
+            "token": raw_token,
+            "expires_in_hours": INVITATION_EXPIRY_HOURS
+        }
+    }
+
+
+# ============================================================
+# ADMIN - LIST INVITATIONS
+# ============================================================
+
+@app.get("/api/admin/invitations")
+def list_invitations(
+    current_user: dict = Depends(require_admin)
+):
+
+    records = (
+        invitations_collection
+        .find({})
+        .sort("created_at", -1)
+        .limit(100)
+    )
+
+    return {
+        "success": True,
+        "invitations": [
+            _serialize_invitation(record)
+            for record in records
+        ]
+    }
+
+
+# ============================================================
+# INVITATION - VERIFY TOKEN
+# ============================================================
+# Public endpoint. Checks whether a token is valid
+# (exists, not expired, not used) so the frontend can
+# display the acceptance form or an error message.
+# ============================================================
+
+@app.post("/api/invitations/verify")
+def verify_invitation_token(
+    request: InvitationVerify
+):
+
+    token = request.token.strip()
+
+    if not token:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invitation token is required."
+        )
+
+    token_hash = _hash_token(token)
+
+    invitation = invitations_collection.find_one({
+        "token_hash": token_hash
+    })
+
+    if not invitation:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Invalid invitation link."
+        )
+
+    if invitation.get("used", False):
+
+        raise HTTPException(
+            status_code=410,
+            detail=(
+                "This invitation has already been "
+                "used."
+            )
+        )
+
+    expires_at = invitation.get("expires_at")
+
+    if expires_at and datetime.utcnow() > expires_at:
+
+        raise HTTPException(
+            status_code=410,
+            detail="This invitation has expired."
+        )
+
+    return {
+        "success": True,
+        "contact": invitation.get(
+            "invited_contact", ""
+        )
+    }
+
+
+# ============================================================
+# INVITATION - ACCEPT
+# ============================================================
+# Creates a new user with role = admin after verifying
+# the invitation token. The same token cannot be reused.
+# ============================================================
+
+@app.post("/api/invitations/accept")
+def accept_invitation(
+    request: InvitationAccept
+):
+
+    token = request.token.strip()
+    name = request.name.strip()
+    password = request.password
+
+    if not token:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invitation token is required."
+        )
+
+    if not name or len(name) < 3:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a valid full name."
+        )
+
+    validate_password(password)
+
+    token_hash = _hash_token(token)
+
+    invitation = invitations_collection.find_one({
+        "token_hash": token_hash
+    })
+
+    if not invitation:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Invalid invitation link."
+        )
+
+    if invitation.get("used", False):
+
+        raise HTTPException(
+            status_code=410,
+            detail=(
+                "This invitation has already been "
+                "used."
+            )
+        )
+
+    expires_at = invitation.get("expires_at")
+
+    if expires_at and datetime.utcnow() > expires_at:
+
+        raise HTTPException(
+            status_code=410,
+            detail="This invitation has expired."
+        )
+
+    invited_contact = invitation.get(
+        "invited_contact", ""
+    )
+
+    existing = users_collection.find_one({
+        "contact": invited_contact
+    })
+
+    if existing:
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "An account with this contact "
+                "already exists."
+            )
+        )
+
+    hashed_password = bcrypt.hashpw(
+        password.encode("utf-8"),
+        bcrypt.gensalt()
+    ).decode("utf-8")
+
+    new_user = {
+        "name": name,
+        "contact": invited_contact,
+        "password": hashed_password,
+        "role": "admin",
+        "created_at": datetime.utcnow(),
+        "verified": True,
+        "mfa_enabled": False
+    }
+
+    result = users_collection.insert_one(new_user)
+
+    invitations_collection.update_one(
+        {"_id": invitation["_id"]},
+        {"$set": {"used": True}}
+    )
+
+    return {
+        "success": True,
+        "message": "Admin account created successfully.",
+        "user": {
+            "id": str(result.inserted_id),
+            "name": name,
+            "contact": invited_contact,
+            "role": "admin"
+        }
+    }
+
+
+# ============================================================
+# ADMIN - PRICING & MARGIN
+# ============================================================
 # The Pricing Agent and Margin Agent formulas are never
 # changed and the CSV files are never modified here.
 # ============================================================

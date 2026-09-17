@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accept Admin Invitation | Maritime AI</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background:
+                linear-gradient(
+                    120deg,
+                    rgba(3, 15, 31, 0.96),
+                    rgba(8, 35, 61, 0.92)
+                ),
+                url("https://images.unsplash.com/photo-1494412574643-ff11b0a9d1c6?auto=format&fit=crop&w=2000&q=80");
+            background-size: cover;
+            background-position: center;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .page {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+        }
+
+        .invite-container {
+            width: 100%;
+            max-width: 1100px;
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 22px;
+            overflow: hidden;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+        }
+
+        /* =====================================================
+           LEFT BUSINESS PANEL
+        ===================================================== */
+
+        .business-panel {
+            position: relative;
+            padding: 60px;
+            background: linear-gradient(145deg, #071a2d, #0c3556);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .brand {
+            position: absolute;
+            top: 32px;
+            left: 40px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+        }
+
+        .brand-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: #ffffff;
+            color: #08243d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .business-content {
+            max-width: 500px;
+        }
+
+        .eyebrow {
+            color: #72c9ff;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-bottom: 18px;
+        }
+
+        .business-panel h1 {
+            font-size: 46px;
+            line-height: 1.08;
+            font-weight: 900;
+            margin-bottom: 22px;
+        }
+
+        .business-panel h1 span {
+            color: #66c7ff;
+        }
+
+        .business-panel p {
+            color: #c7d7e5;
+            font-size: 16px;
+            line-height: 1.7;
+            margin-bottom: 35px;
+        }
+
+        .business-points {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .business-point {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #e9f5ff;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .check {
+            width: 27px;
+            height: 27px;
+            border-radius: 50%;
+            background: rgba(102, 199, 255, 0.15);
+            border: 1px solid rgba(102, 199, 255, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #70caff;
+            flex-shrink: 0;
+            font-weight: 800;
+        }
+
+        /* =====================================================
+           RIGHT REGISTER PANEL
+        ===================================================== */
+
+        .register-panel {
+            padding: 55px 50px;
+            color: #12263a;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .register-header {
+            margin-bottom: 27px;
+        }
+
+        .register-header h2 {
+            font-size: 32px;
+            font-weight: 900;
+            margin-bottom: 9px;
+        }
+
+        .register-header p {
+            color: #6b7c8d;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .invite-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            padding: 12px 15px;
+            border-radius: 9px;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.5;
+            margin-bottom: 22px;
+        }
+
+        .invite-status.invalid {
+            display: block;
+            background: #fff1f1;
+            color: #b42318;
+            border: 1px solid #ffd3d0;
+        }
+
+        .invite-status.valid {
+            display: block;
+            background: #effaf3;
+            color: #18763d;
+            border: 1px solid #ccebd7;
+        }
+
+        .form-group {
+            margin-bottom: 22px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 800;
+            color: #253b50;
+            margin-bottom: 9px;
+        }
+
+        input {
+            width: 100%;
+            height: 52px;
+            padding: 0 16px;
+            border: 1px solid #d6e0e8;
+            border-radius: 10px;
+            outline: none;
+            font-size: 15px;
+            transition: 0.2s;
+        }
+
+        input:focus {
+            border-color: #1479b8;
+            box-shadow: 0 0 0 3px rgba(20, 121, 184, 0.1);
+        }
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-wrapper input {
+            padding-right: 52px;
+        }
+
+        .show-password {
+            position: absolute;
+            right: 13px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .password-hint {
+            margin-top: 8px;
+            color: #8998a6;
+            font-size: 11px;
+        }
+
+        .accept-button {
+            width: 100%;
+            height: 53px;
+            border: none;
+            border-radius: 10px;
+            background: #0a3557;
+            color: white;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: 0.2s;
+        }
+
+        .accept-button:hover {
+            background: #0d527f;
+            transform: translateY(-1px);
+        }
+
+        .accept-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .message {
+            margin-top: 18px;
+            padding: 12px 14px;
+            border-radius: 9px;
+            font-size: 13px;
+            line-height: 1.5;
+            display: none;
+        }
+
+        .message.error {
+            display: block;
+            background: #fff1f1;
+            color: #b42318;
+            border: 1px solid #ffd3d0;
+        }
+
+        .message.success {
+            display: block;
+            background: #effaf3;
+            color: #18763d;
+            border: 1px solid #ccebd7;
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 25px;
+            color: #6b7c8d;
+            font-size: 14px;
+        }
+
+        .login-link a {
+            color: #0b5f8e;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+
+        .security {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid #e7edf2;
+            text-align: center;
+            color: #8998a6;
+            font-size: 11px;
+        }
+
+        .password-hint {
+            margin-top: 7px;
+            color: #7b8995;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 850px) {
+            .invite-container {
+                grid-template-columns: 1fr;
+            }
+
+            .business-panel {
+                display: none;
+            }
+
+            .register-panel {
+                padding: 45px 34px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="page">
+
+    <div class="invite-container">
+
+        <!-- =================================================
+             LEFT BUSINESS PANEL
+        ================================================== -->
+
+        <section class="business-panel">
+
+            <div class="brand">
+
+                <div class="brand-icon">
+                    🚢
+                </div>
+
+                MARITIME AI
+
+            </div>
+
+            <div class="business-content">
+
+                <div class="eyebrow">
+                    SECURE ADMINISTRATOR ACCESS
+                </div>
+
+                <h1>
+                    Create your<br>
+                    <span>administrator account.</span>
+                </h1>
+
+                <p>
+                    You were invited to join the platform as
+                    an administrator. Accept this invitation
+                    to take control of pricing, margins,
+                    shipments, users and quotations.
+                </p>
+
+                <div class="business-points">
+
+                    <div class="business-point">
+                        <span class="check">
+                            ✓
+                        </span>
+                        Full admin dashboard access
+                    </div>
+
+                    <div class="business-point">
+                        <span class="check">
+                            ✓
+                        </span>
+                        Invite other administrators
+                    </div>
+
+                    <div class="business-point">
+                        <span class="check">
+                            ✓
+                        </span>
+                        Review feedback & user activity
+                    </div>
+
+                    <div class="business-point">
+                        <span class="check">
+                            ✓
+                        </span>
+                        Manage quotations and margins
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- =================================================
+             RIGHT ACCEPT PANEL
+        ================================================== -->
+
+        <section class="register-panel">
+
+            <div class="register-header">
+
+                <h2>
+                    Accept Admin Invitation
+                </h2>
+
+                <p>
+                    Verify the invitation and set up your
+                    administrator password.
+                </p>
+
+            </div>
+
+            <!-- INVITATION STATUS -->
+
+            <div
+                id="inviteStatus"
+                class="invite-status"
+                style="display: none;"
+            ></div>
+
+            <!-- ACCEPT FORM -->
+
+            <form id="acceptForm" style="display: none;">
+
+                <div class="form-group">
+
+                    <label for="name">
+                        FULL NAME
+                    </label>
+
+                    <input
+                        type="text"
+                        id="name"
+                        placeholder="Enter your full name"
+                        autocomplete="name"
+                        required
+                    >
+
+                </div>
+
+                <div class="form-group">
+
+                    <label for="contact">
+                        CONTACT (EMAIL OR MOBILE)
+                    </label>
+
+                    <input
+                        type="text"
+                        id="contact"
+                        placeholder="Email / mobile from the invitation"
+                        autocomplete="username"
+                        required
+                    >
+
+                </div>
+
+                <div class="form-group">
+
+                    <label for="password">
+                        PASSWORD
+                    </label>
+
+                    <div class="password-wrapper">
+
+                        <input
+                            type="password"
+                            id="password"
+                            placeholder="Minimum 6 characters"
+                            autocomplete="new-password"
+                            required
+                        >
+
+                        <button
+                            type="button"
+                            class="show-password"
+                            onclick="togglePassword('password', this)"
+                            aria-label="Show password"
+                        >
+                            👁
+                        </button>
+
+                    </div>
+
+                    <div class="password-hint">
+                        Use at least 6 characters.
+                    </div>
+
+                </div>
+
+                <div class="form-group">
+
+                    <label for="confirmPassword">
+                        CONFIRM PASSWORD
+                    </label>
+
+                    <div class="password-wrapper">
+
+                        <input
+                            type="password"
+                            id="confirmPassword"
+                            placeholder="Confirm password"
+                            autocomplete="new-password"
+                            required
+                        >
+
+                        <button
+                            type="button"
+                            class="show-password"
+                            onclick="togglePassword('confirmPassword', this)"
+                            aria-label="Show password"
+                        >
+                            👁
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <button
+                    type="submit"
+                    class="accept-button"
+                    id="acceptButton"
+                >
+                    Create Admin Account
+                </button>
+
+            </form>
+
+            <!-- MESSAGE -->
+
+            <div
+                id="message"
+                class="message"
+            ></div>
+
+            <!-- LOGIN LINK -->
+
+            <div class="login-link">
+
+                Already an admin?
+
+                <a href="login.html">
+                    Sign in to Maritime AI
+                </a>
+
+            </div>
+
+            <!-- SECURITY -->
+
+            <div class="security">
+                🔒 Invitation is single-use and expires in 24 hours
+            </div>
+
+        </section>
+
+    </div>
+
+</div>
+
+<script>
+
+    const API_URL = "http://127.0.0.1:8000";
+
+    const params =
+        new URLSearchParams(window.location.search);
+
+    const token =
+        params.get("token") || "";
+
+    const inviteStatus =
+        document.getElementById("inviteStatus");
+
+    const acceptForm =
+        document.getElementById("acceptForm");
+
+    const message =
+        document.getElementById("message");
+
+    const acceptButton =
+        document.getElementById("acceptButton");
+
+
+    /* =====================================================
+       UTILITIES
+    ===================================================== */
+
+    function showMessage(text, type) {
+
+        message.textContent = text;
+
+        message.className = "message " + type;
+    }
+
+    function clearMessage() {
+
+        message.textContent = "";
+
+        message.className = "message";
+    }
+
+    function showStatus(text, valid) {
+
+        inviteStatus.style.display = "block";
+
+        inviteStatus.textContent = text;
+
+        inviteStatus.className =
+            "invite-status " + (valid ? "valid" : "invalid");
+    }
+
+    function togglePassword(inputId, button) {
+
+        const input =
+            document.getElementById(inputId);
+
+        if (input.type === "password") {
+
+            input.type = "text";
+            button.textContent = "🙈";
+
+        } else {
+
+            input.type = "password";
+            button.textContent = "👁";
+        }
+    }
+
+
+    /* =====================================================
+       VERIFY TOKEN ON LOAD
+    ===================================================== */
+
+    async function verifyToken() {
+
+        if (!token) {
+
+            showStatus(
+                "Missing invitation token. Open the full invitation link provided by the administrator.",
+                false
+            );
+
+            return;
+        }
+
+        try {
+
+            const response = await fetch(
+                `${API_URL}/api/invitations/verify`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ token: token })
+                }
+            );
+
+            const data =
+                await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.detail ||
+                    "This invitation is invalid or expired."
+                );
+            }
+
+            showStatus(
+                "Invitation is valid. Complete the form to create your admin account.",
+                true
+            );
+
+            acceptForm.style.display = "block";
+
+            const contactHint =
+                data.contact || "";
+
+            if (contactHint) {
+
+                const contactInput =
+                    document.getElementById("contact");
+
+                contactInput.value =
+                    contactHint;
+
+                contactInput.setAttribute(
+                    "readonly",
+                    "readonly"
+                );
+
+                contactInput.style.color = "#8a9aaa";
+            }
+
+        } catch (error) {
+
+            showStatus(
+                error.message ||
+                "This invitation is invalid or expired.",
+                false
+            );
+
+            acceptForm.style.display = "none";
+        }
+    }
+
+
+    /* =====================================================
+       ACCEPT INVITATION
+    ===================================================== */
+
+    acceptForm.addEventListener(
+        "submit",
+        async function(event) {
+
+            event.preventDefault();
+
+            clearMessage();
+
+            const name =
+                document.getElementById("name").value.trim();
+
+            const contact =
+                document.getElementById("contact").value.trim();
+
+            const password =
+                document.getElementById("password").value;
+
+            const confirmPassword =
+                document.getElementById("confirmPassword").value;
+
+            /* ---------------------------------------------
+               VALIDATION
+            --------------------------------------------- */
+
+            if (name.length < 3) {
+
+                showMessage(
+                    "Please enter your full name.",
+                    "error"
+                );
+
+                return;
+            }
+
+            if (!contact) {
+
+                showMessage(
+                    "Please enter your contact email or mobile number.",
+                    "error"
+                );
+
+                return;
+            }
+
+            if (password.length < 6) {
+
+                showMessage(
+                    "Password must contain at least 6 characters.",
+                    "error"
+                );
+
+                return;
+            }
+
+            if (password !== confirmPassword) {
+
+                showMessage(
+                    "Passwords do not match.",
+                    "error"
+                );
+
+                return;
+            }
+
+            /* ---------------------------------------------
+               SUBMIT
+            --------------------------------------------- */
+
+            acceptButton.disabled = true;
+            acceptButton.textContent = "Creating Admin Account...";
+
+            try {
+
+                const response = await fetch(
+                    `${API_URL}/api/invitations/accept`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            token: token,
+                            name: name,
+                            password: password
+                        })
+                    }
+                );
+
+                const data =
+                    await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        data.detail ||
+                        "Unable to accept this invitation."
+                    );
+                }
+
+                showMessage(
+                    data.message ||
+                    "Admin account created successfully. Redirecting to login...",
+                    "success"
+                );
+
+                showStatus(
+                    "Invitation accepted. Redirecting...",
+                    true
+                );
+
+                acceptForm.style.display = "none";
+
+                setTimeout(
+                    function() {
+                        window.location.href = "login.html";
+                    },
+                    1800
+                );
+
+            } catch (error) {
+
+                showMessage(
+                    error.message ||
+                    "Unable to accept this invitation.",
+                    "error"
+                );
+
+                showStatus(
+                    "This invitation could not be used.",
+                    false
+                );
+
+            } finally {
+
+                acceptButton.disabled = false;
+                acceptButton.textContent = "Create Admin Account";
+            }
+        }
+    );
+
+    verifyToken();
+
+</script>
+
+</body>
+</html>

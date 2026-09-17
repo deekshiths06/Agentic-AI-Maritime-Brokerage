@@ -78,6 +78,76 @@ const shipmentStatusFlow = [
   "Delivered",
 ];
 
+// ==========================================
+// ANIMATED NUMBER COUNTER
+// Counts from 0 to the target value when it
+// scrolls into view. Used only by the normal
+// User Dashboard stats grid.
+// ==========================================
+
+function AnimatedNumber({
+  value,
+  duration = 1100,
+}) {
+  const [display, setDisplay] = useState(0);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const target = Number(value) || 0;
+    const el = ref.current;
+
+    const animate = () => {
+      const start = performance.now();
+
+      const tick = (now) => {
+        const progress = Math.min(
+          (now - start) / duration,
+          1
+        );
+        const eased =
+          1 - Math.pow(1 - progress, 3);
+        setDisplay(Math.round(target * eased));
+
+        if (progress < 1) {
+          requestAnimationFrame(tick);
+        }
+      };
+
+      requestAnimationFrame(tick);
+    };
+
+    if (!("IntersectionObserver" in window) || !el) {
+      animate();
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            animate();
+            observer.disconnect();
+          }
+        });
+      },
+      { threshold: 0.3 }
+    );
+
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, [value, duration]);
+
+  return (
+    <strong
+      className="animated-number"
+      ref={ref}
+    >
+      {display.toLocaleString()}
+    </strong>
+  );
+}
+
 function App() {
   const readSavedUser = () => {
     try {
@@ -198,6 +268,51 @@ function App() {
     useState(false);
   const [adminPricingError, setAdminPricingError] =
     useState("");
+
+  // ==========================================
+  // FEEDBACK STATE
+  // ==========================================
+
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackType, setFeedbackType] = useState("");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] =
+    useState(false);
+  const [feedbackSuccess, setFeedbackSuccess] =
+    useState("");
+  const [feedbackError, setFeedbackError] = useState("");
+  const [myFeedback, setMyFeedback] = useState([]);
+  const [myFeedbackLoading, setMyFeedbackLoading] =
+    useState(false);
+  const [myFeedbackError, setMyFeedbackError] =
+    useState("");
+
+  // ==========================================
+  // ADMIN FEEDBACK STATE
+  // ==========================================
+
+  const [adminFeedback, setAdminFeedback] = useState([]);
+  const [adminFeedbackLoading, setAdminFeedbackLoading] =
+    useState(false);
+  const [adminFeedbackError, setAdminFeedbackError] =
+    useState("");
+
+  // ==========================================
+  // ADMIN INVITATION STATE
+  // ==========================================
+
+  const [inviteContact, setInviteContact] = useState("");
+  const [inviteGenerating, setInviteGenerating] =
+    useState(false);
+  const [inviteResult, setInviteResult] = useState(null);
+  const [inviteError, setInviteError] = useState("");
+  const [adminInvitations, setAdminInvitations] =
+    useState([]);
+  const [adminInvitationsLoading, setAdminInvitationsLoading] =
+    useState(false);
+  const [adminInvitationsError, setAdminInvitationsError] =
+    useState("");
+  const [copiedInvite, setCopiedInvite] = useState(false);
 
   // ==========================================
   // LOGIN CHECK
@@ -1425,6 +1540,317 @@ function App() {
   };
 
   // ==========================================
+  // USER FEEDBACK
+  // ==========================================
+
+  const loadMyFeedback = async () => {
+    setMyFeedbackLoading(true);
+    setMyFeedbackError("");
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/feedback",
+        { headers: { ...getAuthHeaders() } }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load your feedback."
+        );
+      }
+
+      setMyFeedback(data?.feedback || []);
+    } catch (err) {
+      console.error(
+        "Feedback loading error:",
+        err
+      );
+      setMyFeedback([]);
+      setMyFeedbackError(
+        err.message ||
+          "Unable to load your feedback."
+      );
+    } finally {
+      setMyFeedbackLoading(false);
+    }
+  };
+
+  const handleSubmitFeedback = async (e) => {
+    e.preventDefault();
+
+    setFeedbackError("");
+    setFeedbackSuccess("");
+
+    if (!feedbackRating) {
+      setFeedbackError(
+        "Please select a rating first."
+      );
+      return;
+    }
+
+    if (!feedbackType) {
+      setFeedbackError(
+        "Please select a feedback type."
+      );
+      return;
+    }
+
+    if (!feedbackMessage.trim()) {
+      setFeedbackError(
+        "Please enter your feedback message."
+      );
+      return;
+    }
+
+    setFeedbackSubmitting(true);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/feedback",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify({
+            rating: Number(feedbackRating),
+            feedback_type: feedbackType,
+            message: feedbackMessage,
+          }),
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Unable to submit feedback."
+        );
+      }
+
+      setFeedbackSuccess(
+        data?.message ||
+          "Thank you! Your feedback has been submitted."
+      );
+      setFeedbackRating(0);
+      setFeedbackType("");
+      setFeedbackMessage("");
+      loadMyFeedback();
+    } catch (err) {
+      console.error(
+        "Feedback submission error:",
+        err
+      );
+      setFeedbackError(
+        err.message ||
+          "Unable to submit feedback."
+      );
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
+
+  // ==========================================
+  // ADMIN FEEDBACK
+  // ==========================================
+
+  const loadAdminFeedback = async () => {
+    setAdminFeedbackLoading(true);
+    setAdminFeedbackError("");
+
+    try {
+      const response = await adminFetch(
+        "http://127.0.0.1:8000/api/admin/feedback"
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load feedback."
+        );
+      }
+
+      setAdminFeedback(data?.feedback || []);
+    } catch (err) {
+      console.error(
+        "Admin feedback loading error:",
+        err
+      );
+      setAdminFeedback([]);
+      setAdminFeedbackError(
+        err.message ||
+          "Unable to load feedback."
+      );
+    } finally {
+      setAdminFeedbackLoading(false);
+    }
+  };
+
+  // ==========================================
+  // ADMIN INVITATIONS
+  // ==========================================
+
+  const loadAdminInvitations = async () => {
+    setAdminInvitationsLoading(true);
+    setAdminInvitationsError("");
+
+    try {
+      const response = await adminFetch(
+        "http://127.0.0.1:8000/api/admin/invitations"
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load invitations."
+        );
+      }
+
+      setAdminInvitations(data?.invitations || []);
+    } catch (err) {
+      console.error(
+        "Admin invitations loading error:",
+        err
+      );
+      setAdminInvitations([]);
+      setAdminInvitationsError(
+        err.message ||
+          "Unable to load invitations."
+      );
+    } finally {
+      setAdminInvitationsLoading(false);
+    }
+  };
+
+  const handleGenerateInvitation = async (e) => {
+    e.preventDefault();
+
+    setInviteError("");
+    setInviteResult(null);
+    setCopiedInvite(false);
+
+    if (!inviteContact.trim()) {
+      setInviteError(
+        "Please enter a contact email."
+      );
+      return;
+    }
+
+    setInviteGenerating(true);
+
+    try {
+      const response = await adminFetch(
+        "http://127.0.0.1:8000/api/admin/invitations",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            invited_contact: inviteContact.trim(),
+          }),
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to generate invitation."
+        );
+      }
+
+      setInviteResult(data?.invitation || null);
+      setInviteContact("");
+      loadAdminInvitations();
+    } catch (err) {
+      console.error(
+        "Invitation generation error:",
+        err
+      );
+      setInviteError(
+        err.message ||
+          "Unable to generate invitation."
+      );
+    } finally {
+      setInviteGenerating(false);
+    }
+  };
+
+  const copyInviteLink = () => {
+    const token = inviteResult?.token;
+
+    if (!token) return;
+
+    const link =
+      `${window.location.origin}/accept-invitation.html?token=${encodeURIComponent(
+        token
+      )}`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard
+        .writeText(link)
+        .then(() => {
+          setCopiedInvite(true);
+          setTimeout(() => setCopiedInvite(false), 2500);
+        })
+        .catch(() => {
+          prompt(
+            "Copy the invitation link:",
+            link
+          );
+        });
+    } else {
+      prompt("Copy the invitation link:", link);
+    }
+  };
+
+  const formatFullDate = (value) => {
+    if (!value) return "-";
+
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return String(value);
+
+    return date.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const starLabel = (rating) => {
+    if (!rating) return "Select a rating";
+    if (rating === 1) return "Poor";
+    if (rating === 2) return "Fair";
+    if (rating === 3) return "Good";
+    if (rating === 4) return "Very Good";
+    return "Excellent";
+  };
+
+  // ==========================================
   // RESULT HELPERS
   // ==========================================
 
@@ -1615,13 +2041,6 @@ function App() {
     user?.username ||
     "User";
 
-  const profileContact =
-    user?.contact ||
-    user?.email ||
-    user?.mobile ||
-    user?.phone ||
-    "";
-
   const profileRoleLabel = isAdmin
     ? "Administrator"
     : "User";
@@ -1740,6 +2159,14 @@ function App() {
       return;
     }
 
+    if (item === "Feedback") {
+      setActiveNav("Feedback");
+      setView("feedback");
+      setError("");
+      loadMyFeedback();
+      return;
+    }
+
     // ----------------------------------------
     // ADMIN SECTIONS
     // ----------------------------------------
@@ -1783,6 +2210,22 @@ function App() {
       setView("admin-activity");
       setError("");
       loadAdminActivity();
+      return;
+    }
+
+    if (item === "User Feedback") {
+      setActiveNav("User Feedback");
+      setView("admin-feedback");
+      setError("");
+      loadAdminFeedback();
+      return;
+    }
+
+    if (item === "Admin Invitations") {
+      setActiveNav("Admin Invitations");
+      setView("admin-invitations");
+      setError("");
+      loadAdminInvitations();
       return;
     }
 
@@ -1832,6 +2275,33 @@ function App() {
   }, [isAdmin, view]);
 
   // ==========================================
+  // USER DASHBOARD LIVE STATS
+  // Feeds the animated stat counters on the home
+  // dashboard from the user's real route history
+  // and shipments. Display only.
+  // ==========================================
+
+  const activeShipmentCount = shipments.filter(
+    (shipment) =>
+      shipment.status &&
+      shipment.status !== "Delivered"
+  ).length;
+
+  const deliveredShipmentCount = shipments.filter(
+    (shipment) => shipment.status === "Delivered"
+  ).length;
+
+  useEffect(() => {
+    if (!isAdmin && view === "home") {
+      loadRouteHistory();
+      loadShipments();
+    }
+  // Runs when the user lands on the dashboard so the
+  // counters always show fresh live numbers.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, view]);
+
+  // ==========================================
   // DASHBOARD
   // ==========================================
 
@@ -1839,16 +2309,45 @@ function App() {
     return (
       <section className="home-screen dashboard-animated page-view">
 
-        <div className="welcome-block">
+        {/* MARITIME / AI BACKGROUND MOTION */}
+        {/* Decorative layer behind the dashboard content. */}
+        {/* Aesthetic only. */}
+
+        <div className="dashboard-backdrop" aria-hidden="true">
+          <div className="db-aurora db-aurora-1"></div>
+          <div className="db-aurora db-aurora-2"></div>
+          <div className="db-aurora db-aurora-3"></div>
+          <div className="db-grid"></div>
+          <div className="db-particles">
+            <span className="db-particle p1"></span>
+            <span className="db-particle p2"></span>
+            <span className="db-particle p3"></span>
+            <span className="db-particle p4"></span>
+            <span className="db-particle p5"></span>
+            <span className="db-particle p6"></span>
+          </div>
+        </div>
+
+        {/* WELCOME / HEADER */}
+
+        <div className="welcome-block dashboard-welcome">
 
           <div className="welcome-text">
+
+            <div className="ai-status-pill">
+              <span className="ai-status-dot"></span>
+              AI SYSTEMS ONLINE
+            </div>
 
             <span className="welcome-label">
               MARITIME AI PLATFORM
             </span>
 
             <h1>
-              Welcome, {profileName}
+              Welcome,{" "}
+              <span className="welcome-name">
+                {profileName}
+              </span>
             </h1>
 
             <p>
@@ -1856,22 +2355,124 @@ function App() {
               freight decisions.
             </p>
 
-            {profileContact && (
-              <small>{profileContact}</small>
-            )}
+          </div>
+
+        </div>
+
+        {/* AI AGENT STATUS PANEL */}
+
+        <div className="ai-agent-panel">
+
+          <div className="ai-panel-head">
+
+            <span className="ai-panel-title">
+              <span className="ai-panel-dot"></span>
+              AI Control Plane
+            </span>
+
+            <span className="ai-panel-sub">
+              All systems operational
+            </span>
+
+          </div>
+
+          <div className="ai-agent-row">
+
+            <div className="ai-agent-chip">
+              <span className="ai-chip-core"></span>
+              <span className="ai-chip-meta">
+                <strong>Route Agent</strong>
+                <span>Navigation & routing intelligence</span>
+              </span>
+              <span className="ai-chip-status online">
+                Online
+              </span>
+            </div>
+
+            <div className="ai-agent-chip">
+              <span className="ai-chip-core"></span>
+              <span className="ai-chip-meta">
+                <strong>Pricing Agent</strong>
+                <span>Dynamic pricing engine</span>
+              </span>
+              <span className="ai-chip-status online">
+                Online
+              </span>
+            </div>
+
+            <div className="ai-agent-chip">
+              <span className="ai-chip-core"></span>
+              <span className="ai-chip-meta">
+                <strong>Margin Agent</strong>
+                <span>Profit & margin guardrails</span>
+              </span>
+              <span className="ai-chip-status online">
+                Online
+              </span>
+            </div>
 
           </div>
 
         </div>
 
-        {/* MARITIME SHIP ANIMATION */}
+        {/* ANIMATED STATISTICS */}
+
+        <div className="dashboard-stats">
+
+          <div className="stat-card">
+            <div className="stat-icon">⇢</div>
+            <div className="stat-meta">
+              <AnimatedNumber value={history.length} />
+              <span>Routes Analyzed</span>
+            </div>
+            <div className="stat-glow"></div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon">◉</div>
+            <div className="stat-meta">
+              <AnimatedNumber value={activeShipmentCount} />
+              <span>Active Shipments</span>
+            </div>
+            <div className="stat-glow"></div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon">◎</div>
+            <div className="stat-meta">
+              <AnimatedNumber value={deliveredShipmentCount} />
+              <span>Delivered Shipments</span>
+            </div>
+            <div className="stat-glow"></div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon">✦</div>
+            <div className="stat-meta">
+              <AnimatedNumber value={3} />
+              <span>AI Agents Active</span>
+            </div>
+            <div className="stat-glow"></div>
+          </div>
+
+        </div>
+
+        {/* MARITIME SHIP + ROUTE ACTIVITY ANIMATION */}
 
         <div className="ship-scene" aria-hidden="true">
+
+          <div className="ship-route-track">
+            <span className="ship-port port-a"></span>
+            <span className="ship-port port-b"></span>
+            <span className="ship-cargo-dot"></span>
+          </div>
+
           <div className="ship-water">
             <div className="wave wave-1"></div>
             <div className="wave wave-2"></div>
             <div className="wave wave-3"></div>
           </div>
+
           <div className="ship-body">
             <div className="ship-hull"></div>
             <div className="ship-deck"></div>
@@ -1890,6 +2491,7 @@ function App() {
               <div className="container c5"></div>
             </div>
           </div>
+
         </div>
 
         {/* DASHBOARD QUOTATION + WORKSTATION ILLUSTRATION */}
@@ -2010,6 +2612,56 @@ function App() {
 
         </button>
 
+        {/* QUICK ACTIONS */}
+
+        <div className="dashboard-quick-actions">
+
+          <button
+            className="quick-action-btn"
+            type="button"
+            onClick={() =>
+              handleNavClick("Route History")
+            }
+          >
+
+            <span className="qa-icon">
+              ◇
+            </span>
+
+            <span className="qa-text">
+              <strong>Route History</strong>
+              <span>Review past route analyses</span>
+            </span>
+
+            <span className="qa-arrow" aria-hidden="true">
+              →
+            </span>
+
+          </button>
+
+          <button
+            className="quick-action-btn"
+            type="button"
+            onClick={goToShipments}
+          >
+
+            <span className="qa-icon">
+              ▤
+            </span>
+
+            <span className="qa-text">
+              <strong>My Shipments</strong>
+              <span>Track cargo progress</span>
+            </span>
+
+            <span className="qa-arrow" aria-hidden="true">
+              →
+            </span>
+
+          </button>
+
+        </div>
+
         {/* CLICKABLE HINT */}
 
         <button
@@ -2030,7 +2682,7 @@ function App() {
 
         <div className="info-cards">
 
-          <div className="info-card">
+          <div className="info-card dashboard-card">
 
             <div className="info-card-icon">
               ◈
@@ -2051,7 +2703,7 @@ function App() {
 
           </div>
 
-          <div className="info-card">
+          <div className="info-card dashboard-card">
 
             <div className="info-card-icon">
               ◉
@@ -2072,7 +2724,7 @@ function App() {
 
           </div>
 
-          <div className="info-card">
+          <div className="info-card dashboard-card">
 
             <div className="info-card-icon">
               ◆
@@ -2654,12 +3306,14 @@ function App() {
               </div>
               <div className="quotation-cta-text">
                 <strong>
-                  Generate Pricing & Margin Quotation
+                  {isAdmin
+                    ? "Generate Pricing & Margin Quotation"
+                    : "Generate Your Quotation"}
                 </strong>
                 <span>
-                  Run Pricing Agent and Margin Agent to
-                  calculate the optimal selling price for
-                  this shipment
+                  {isAdmin
+                    ? "Run Pricing Agent and Margin Agent to calculate the optimal selling price for this shipment"
+                    : "Calculate a transparent, competitive total price for this shipment"}
                 </span>
               </div>
               <div className="quotation-cta-arrow">
@@ -2710,14 +3364,17 @@ function App() {
               </div>
               <div>
                 <span className="section-label">
-                  PRICING INTELLIGENCE
+                  {isAdmin
+                    ? "PRICING INTELLIGENCE"
+                    : "QUOTATION PRICING"}
                 </span>
                 <h2>
-                  Cost Breakdown
+                  {isAdmin ? "Cost Breakdown" : "Your Freight Cost"}
                 </h2>
                 <p>
-                  Calculated by the Pricing Agent based on
-                  route-specific pricing data
+                  {isAdmin
+                    ? "Calculated by the Pricing Agent based on route-specific pricing data"
+                    : "Transparent, customer-facing charges for this shipment"}
                 </p>
               </div>
             </div>
@@ -2804,14 +3461,85 @@ function App() {
                   ) || "-"}
                 </span>
               </div>
+              {isAdmin && (
+                <>
+              <div className="quotation-row quotation-row-divider">
+                <span className="quotation-label">
+                  Operating Cost
+                </span>
+                <span className="quotation-value quotation-value-bold">
+                  ${quotation.pricing.operating_cost_usd?.toLocaleString(
+                    undefined,
+                    { minimumFractionDigits: 2 }
+                  ) || "-"}
+                </span>
+              </div>
+
+              <div className="quotation-row">
+                <span className="quotation-label">
+                  Demand Factor
+                </span>
+                <span className="quotation-value">
+                  {quotation.pricing.demand_factor?.toFixed(2) || "-"}
+                </span>
+              </div>
+
+              <div className="quotation-row quotation-row-highlight">
+                <span className="quotation-label">
+                  Demand Adjusted Cost
+                </span>
+                <span className="quotation-value quotation-value-primary">
+                  ${quotation.pricing.demand_adjusted_cost_usd?.toLocaleString(
+                    undefined,
+                    { minimumFractionDigits: 2 }
+                  ) || "-"}
+                </span>
+              </div>
+                </>
+              )}
 
             </div>
           </div>
         )}
 
+        {/* FINAL QUOTATION PRICE (CUSTOMER-FACING) */}
+
+        {!isAdmin && quotation && quotation.margin && (
+          <div className="quotation-section result-animate result-animate-2 quotation-total-section">
+            <div className="quotation-section-header">
+              <div className="quotation-section-icon quotation-icon-accept">
+                $
+              </div>
+              <div>
+                <span className="section-label">
+                  FINAL QUOTATION
+                </span>
+                <h2>
+                  Total Quotation Price
+                </h2>
+                <p>
+                  The final price for this shipment, including
+                  all freight, surcharges and port charges.
+                </p>
+              </div>
+            </div>
+
+            <div className="quotation-total-readout">
+              <span className="quotation-total-currency">$</span>
+              <span className="quotation-total-amount">
+                {quotation.margin.recommended_selling_price_usd?.toLocaleString(
+                  undefined,
+                  { minimumFractionDigits: 2 }
+                ) || "-"}
+              </span>
+            </div>
+
+          </div>
+        )}
+
         {/* MARGIN OPTIMIZATION */}
 
-        {quotation && quotation.margin && (
+        {isAdmin && quotation && quotation.margin && (
           <div className="quotation-section result-animate result-animate-2">
             <div className="quotation-section-header">
               <div className="quotation-section-icon quotation-icon-margin">
@@ -2906,7 +3634,9 @@ function App() {
                   ALTERNATIVE ROUTES
                 </span>
                 <h2>
-                  Route Comparison with Pricing
+                  {isAdmin
+                    ? "Route Comparison with Pricing"
+                    : "Alternative Route Options"}
                 </h2>
               </div>
               <span className="route-count">
@@ -2923,8 +3653,8 @@ function App() {
                     <th>Transit</th>
                     <th>Distance</th>
                     <th>Base Freight</th>
-                    <th>Operating Cost</th>
-                    <th>Demand Adj. Cost</th>
+                    {isAdmin && <th>Operating Cost</th>}
+                    {isAdmin && <th>Demand Adj. Cost</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -2955,22 +3685,26 @@ function App() {
                               )}`
                             : "-"}
                         </td>
-                        <td>
-                          {alt.operating_cost_usd != null
-                            ? `$${alt.operating_cost_usd.toLocaleString(
-                                undefined,
-                                { minimumFractionDigits: 2 }
-                              )}`
-                            : "-"}
-                        </td>
-                        <td>
-                          {alt.demand_adjusted_cost_usd != null
-                            ? `$${alt.demand_adjusted_cost_usd.toLocaleString(
-                                undefined,
-                                { minimumFractionDigits: 2 }
-                              )}`
-                            : "-"}
-                        </td>
+                        {isAdmin && (
+                          <td>
+                            {alt.operating_cost_usd != null
+                              ? `$${alt.operating_cost_usd.toLocaleString(
+                                  undefined,
+                                  { minimumFractionDigits: 2 }
+                                )}`
+                              : "-"}
+                          </td>
+                        )}
+                        {isAdmin && (
+                          <td>
+                            {alt.demand_adjusted_cost_usd != null
+                              ? `$${alt.demand_adjusted_cost_usd.toLocaleString(
+                                  undefined,
+                                  { minimumFractionDigits: 2 }
+                                )}`
+                              : "-"}
+                          </td>
+                        )}
                       </tr>
                     )
                   )}
@@ -3511,13 +4245,15 @@ function App() {
             </span>
 
             <h1>
-              Pricing & Margin Quotation
+              {isAdmin
+                ? "Pricing & Margin Quotation"
+                : "Your Freight Quotation"}
             </h1>
 
             <p>
-              Review the pricing intelligence, margin
-              optimization and route comparison for your
-              generated quotation.
+              {isAdmin
+                ? "Review the pricing intelligence, margin optimization and route comparison for your generated quotation."
+                : "Review the final price and route details for your generated quotation."}
             </p>
 
           </div>
@@ -3539,8 +4275,8 @@ function App() {
             </h3>
 
             <p>
-              Analyze a route and generate a pricing &
-              margin quotation to view it here.
+              Analyze a route and generate a quotation
+              to view it here.
             </p>
 
             <button
@@ -3734,16 +4470,19 @@ function App() {
                   <div>
 
                     <span className="section-label">
-                      PRICING INTELLIGENCE
+                      {isAdmin
+                        ? "PRICING INTELLIGENCE"
+                        : "QUOTATION PRICING"}
                     </span>
 
                     <h2>
-                      Cost Breakdown
+                      {isAdmin ? "Cost Breakdown" : "Your Freight Cost"}
                     </h2>
 
                     <p>
-                      Calculated by the Pricing Agent based on
-                      route-specific pricing data
+                      {isAdmin
+                        ? "Calculated by the Pricing Agent based on route-specific pricing data"
+                        : "Transparent, customer-facing charges for this shipment"}
                     </p>
 
                   </div>
@@ -3811,6 +4550,8 @@ function App() {
 
                   </div>
 
+                  {isAdmin && (
+                    <>
                   <div className="quotation-row quotation-row-divider">
 
                     <span className="quotation-label">
@@ -3854,6 +4595,8 @@ function App() {
                     </span>
 
                   </div>
+                    </>
+                  )}
 
                 </div>
 
@@ -3862,7 +4605,7 @@ function App() {
 
             {/* MARGIN OPTIMIZATION */}
 
-            {quotation.margin && (
+            {isAdmin && quotation.margin && (
               <div className="quotation-section result-animate result-animate-2">
 
                 <div className="quotation-section-header">
@@ -3969,6 +4712,48 @@ function App() {
                     achieved in the final quotation.
                   </span>
 
+                </div>
+
+              </div>
+            )}
+
+            {/* FINAL QUOTATION PRICE (CUSTOMER-FACING) */}
+
+            {!isAdmin && quotation.margin && (
+              <div className="quotation-section result-animate result-animate-2 quotation-total-section">
+
+                <div className="quotation-section-header">
+
+                  <div className="quotation-section-icon quotation-icon-accept">
+                    $
+                  </div>
+
+                  <div>
+
+                    <span className="section-label">
+                      FINAL QUOTATION
+                    </span>
+
+                    <h2>
+                      Total Quotation Price
+                    </h2>
+
+                    <p>
+                      The final price for this shipment, including
+                      all freight, surcharges and port charges.
+                    </p>
+
+                  </div>
+
+                </div>
+
+                <div className="quotation-total-readout">
+                  <span className="quotation-total-currency">$</span>
+                  <span className="quotation-total-amount">
+                    {fmtMoney(
+                      quotation.margin.recommended_selling_price_usd
+                    ).replace("$", "")}
+                  </span>
                 </div>
 
               </div>
@@ -4318,7 +5103,27 @@ function App() {
 
         <div className="howto-grid">
 
-          {howToSteps.map((step, index) => (
+          {(() => {
+            const steps = isAdmin
+              ? howToSteps
+              : howToSteps
+                  .filter(
+                    (step) =>
+                      step.title !==
+                      "Review Pricing & Margin"
+                  )
+                  .map((step) =>
+                    step.title ===
+                    "Generate Quotation"
+                      ? {
+                          ...step,
+                          description:
+                            "Generate a transparent, competitive quotation with a clear total price for your shipment.",
+                        }
+                      : step
+                  );
+
+            return steps.map((step, index) => (
             <article
               className="howto-card"
               key={step.title}
@@ -4344,7 +5149,9 @@ function App() {
               </p>
 
             </article>
-          ))}
+            ));
+            })()
+          }
 
         </div>
 
@@ -4370,7 +5177,13 @@ function App() {
 
           <div className="howto-flow">
 
-            {howToWorkflow.map((step, index) => (
+            {howToWorkflow
+              .filter(
+                (step) =>
+                  isAdmin ||
+                  step.label !== "Pricing & Margin"
+              )
+              .map((step, index) => (
               <React.Fragment key={step.label}>
 
                 {index > 0 && (
@@ -4816,6 +5629,8 @@ function App() {
                       ${formatUsd(shipment.pricing.base_freight_usd)}
                     </span>
                   </div>
+                  {isAdmin && (
+                    <>
                   <div className="shipment-details-item">
                     <span className="shipment-meta-label">
                       Operating Cost
@@ -4844,11 +5659,13 @@ function App() {
                       )}
                     </span>
                   </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
 
-            {shipment.margin && (
+            {isAdmin && shipment.margin && (
               <div className="shipment-details-section">
                 <span className="section-label">
                   MARGIN SUMMARY
@@ -6486,6 +7303,734 @@ function App() {
   };
 
   // ==========================================
+  // USER FEEDBACK PAGE
+  // ==========================================
+
+  const renderFeedback = () => {
+    return (
+      <section className="results-screen page-view">
+
+        <div className="results-header">
+
+          <div>
+
+            <button
+              className="back-button"
+              type="button"
+              onClick={goHome}
+            >
+              ← Back to Dashboard
+            </button>
+
+            <span className="section-label">
+              FEEDBACK
+            </span>
+
+            <h1>
+              Share Your Feedback
+            </h1>
+
+            <p>
+              Your feedback helps us improve the
+              Maritime AI platform.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* FEEDBACK FORM CARD */}
+
+        <div className="feedback-form-card">
+
+          {feedbackSuccess && (
+            <div className="admin-shipment-success feedback-success">
+              {feedbackSuccess}
+            </div>
+          )}
+
+          {feedbackError && (
+            <div className="error-message">
+              {feedbackError}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmitFeedback}>
+
+            {/* RATING */}
+
+            <div className="feedback-field">
+              <label>
+                Your Rating
+              </label>
+
+              <div className="star-rating">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    className={
+                      star <= feedbackRating
+                        ? "star-button star-filled"
+                        : "star-button"
+                    }
+                    onClick={() =>
+                      setFeedbackRating(star)
+                    }
+                    aria-label={`Rate ${star} out of 5`}
+                  >
+                    ★
+                  </button>
+                ))}
+                <span className="star-label">
+                  {starLabel(feedbackRating)}
+                </span>
+              </div>
+            </div>
+
+            {/* FEEDBACK TYPE */}
+
+            <div className="feedback-field">
+              <label>
+                Feedback Type
+              </label>
+              <select
+                value={feedbackType}
+                onChange={(e) =>
+                  setFeedbackType(e.target.value)
+                }
+              >
+                <option value="">
+                  Select feedback type
+                </option>
+                <option value="Service">
+                  Service
+                </option>
+                <option value="Quotation">
+                  Quotation
+                </option>
+                <option value="Route">
+                  Route
+                </option>
+                <option value="Shipment">
+                  Shipment
+                </option>
+                <option value="Other">
+                  Other
+                </option>
+              </select>
+            </div>
+
+            {/* MESSAGE */}
+
+            <div className="feedback-field">
+              <label>
+                Your Message
+              </label>
+              <textarea
+                value={feedbackMessage}
+                onChange={(e) =>
+                  setFeedbackMessage(e.target.value)
+                }
+                placeholder="Tell us about your experience..."
+                rows="5"
+              ></textarea>
+            </div>
+
+            <div className="form-actions">
+
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={feedbackSubmitting}
+              >
+                {feedbackSubmitting
+                  ? "Submitting..."
+                  : "Submit Feedback"}
+              </button>
+
+            </div>
+
+          </form>
+
+        </div>
+
+        {/* MY FEEDBACK HISTORY */}
+
+        <div className="my-feedback-section">
+
+          <div className="comparison-heading">
+
+            <div>
+
+              <span className="section-label">
+                MY FEEDBACK
+              </span>
+
+              <h2>
+                Your Previous Feedback
+              </h2>
+
+            </div>
+
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={loadMyFeedback}
+            >
+              Refresh
+            </button>
+
+          </div>
+
+          {myFeedbackError && (
+            <div className="error-message">
+              {myFeedbackError}
+            </div>
+          )}
+
+          {myFeedbackLoading && (
+            <div className="loading-message">
+              <span className="loading-spinner"></span>
+              Loading your feedback...
+            </div>
+          )}
+
+          {!myFeedbackLoading &&
+            !myFeedbackError &&
+            myFeedback.length === 0 && (
+              <div className="history-empty">
+                <div className="history-empty-icon">
+                  ◈
+                </div>
+                <h3>
+                  No feedback submitted yet.
+                </h3>
+                <p>
+                  Your submitted feedback will appear
+                  here.
+                </p>
+              </div>
+            )}
+
+          {!myFeedbackLoading &&
+            !myFeedbackError &&
+            myFeedback.length > 0 && (
+              <div className="feedback-grid">
+                {myFeedback.map((item) => (
+                  <div
+                    className="feedback-record"
+                    key={item.feedback_id}
+                  >
+                    <div className="feedback-record-head">
+                      <span className="feedback-type-badge">
+                        {item.feedback_type || "Feedback"}
+                      </span>
+                      <span className="feedback-stars">
+                        {"★".repeat(item.rating || 0)}
+                        <i>
+                          {"★".repeat(
+                            Math.max(
+                              0,
+                              5 - (item.rating || 0)
+                            )
+                          )}
+                        </i>
+                      </span>
+                    </div>
+                    <p className="feedback-message">
+                      {item.message}
+                    </p>
+                    <div className="feedback-record-date">
+                      Submitted: {formatFullDate(item.created_at)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+        </div>
+
+      </section>
+    );
+  };
+
+  // ==========================================
+  // ADMIN USER FEEDBACK PAGE
+  // ==========================================
+
+  const renderAdminFeedback = () => {
+    return (
+      <section className="results-screen page-view">
+
+        <div className="results-header">
+
+          <div>
+
+            <button
+              className="back-button"
+              type="button"
+              onClick={() =>
+                handleNavClick("Admin Dashboard")
+              }
+            >
+              ← Back to Admin Dashboard
+            </button>
+
+            <span className="section-label">
+              ADMIN
+            </span>
+
+            <h1>
+              User Feedback
+            </h1>
+
+            <p>
+              Feedback submitted by users across the
+              platform.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* TOOLBAR */}
+
+        <div className="admin-users-toolbar">
+
+          <div className="admin-search-box">
+            <span className="admin-users-count">
+              {adminFeedback.length} feedback
+              {adminFeedback.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={loadAdminFeedback}
+          >
+            Refresh
+          </button>
+
+        </div>
+
+        {/* ERROR */}
+
+        {adminFeedbackError && (
+          <div className="error-message">
+            {adminFeedbackError}
+          </div>
+        )}
+
+        {/* LOADING */}
+
+        {adminFeedbackLoading && (
+          <div className="loading-message">
+            <span className="loading-spinner"></span>
+            Loading feedback...
+          </div>
+        )}
+
+        {/* EMPTY */}
+
+        {!adminFeedbackLoading &&
+          !adminFeedbackError &&
+          adminFeedback.length === 0 && (
+            <div className="history-empty">
+              <div className="history-empty-icon">
+                ◈
+              </div>
+              <h3>
+                No feedback yet.
+              </h3>
+              <p>
+                User feedback will appear here as it
+                is submitted.
+              </p>
+            </div>
+          )}
+
+        {/* FEEDBACK LIST */}
+
+        {!adminFeedbackLoading &&
+          !adminFeedbackError &&
+          adminFeedback.length > 0 && (
+            <div className="feedback-grid">
+              {adminFeedback.map((item) => (
+                <div
+                  className="feedback-record"
+                  key={item.feedback_id}
+                >
+                  <div className="feedback-record-head">
+                    <div className="feedback-user-info">
+                      <strong>
+                        {item.user_name || "User"}
+                      </strong>
+                      {item.user_contact && (
+                        <span>
+                          {item.user_contact}
+                        </span>
+                      )}
+                    </div>
+                    <span className="feedback-type-badge">
+                      {item.feedback_type || "Feedback"}
+                    </span>
+                  </div>
+
+                  <div className="feedback-stars-row">
+                    <span className="feedback-stars">
+                      {"★".repeat(item.rating || 0)}
+                      <i>
+                        {"★".repeat(
+                          Math.max(
+                            0,
+                            5 - (item.rating || 0)
+                          )
+                        )}
+                      </i>
+                    </span>
+                    <span className="feedback-rating-text">
+                      {item.rating}/5
+                    </span>
+                  </div>
+
+                  <p className="feedback-message">
+                    "{item.message}"
+                  </p>
+
+                  <div className="feedback-record-date">
+                    Submitted: {formatFullDate(item.created_at)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+      </section>
+    );
+  };
+
+  // ==========================================
+  // ADMIN INVITATIONS PAGE
+  // ==========================================
+
+  const renderAdminInvitations = () => {
+    return (
+      <section className="results-screen page-view">
+
+        <div className="results-header">
+
+          <div>
+
+            <button
+              className="back-button"
+              type="button"
+              onClick={() => handleNavClick("Admin Dashboard")}
+            >
+              {"←"} Back to Admin Dashboard
+            </button>
+
+            <span className="section-label">
+              ADMIN
+            </span>
+
+            <h1>
+              Admin Invitations
+            </h1>
+
+            <p>
+              Invite new administrators. Each invitation expires
+              in 24 hours and can be used only once.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* INVITE FORM CARD */}
+
+        <div className="feedback-form-card invitation-form-card">
+
+          <div className="invitation-form-heading">
+
+            <span className="section-label">
+              NEW INVITATION
+            </span>
+
+            <h2>
+              Generate an invitation
+            </h2>
+
+            <p>
+              Enter the contact email of the person you want
+              to invite as an administrator.
+            </p>
+
+          </div>
+
+          {inviteError && (
+            <div className="error-message">
+              {inviteError}
+            </div>
+          )}
+
+          <form onSubmit={handleGenerateInvitation}>
+
+            <div className="feedback-field">
+              <label>
+                Contact / Email
+              </label>
+              <input
+                type="text"
+                value={inviteContact}
+                onChange={(e) => setInviteContact(e.target.value)}
+                placeholder="e.g. newadmin@example.com"
+                required
+              />
+            </div>
+
+            <div className="form-actions">
+              <button
+                className="primary-button"
+                type="submit"
+                disabled={inviteGenerating}
+              >
+                {inviteGenerating
+                  ? "Generating..."
+                  : "Generate Invitation"}
+              </button>
+            </div>
+
+          </form>
+
+        </div>
+
+        {/* INVITE RESULT - SUCCESS CARD */}
+
+        {inviteResult && (
+          <div className="invitation-result invitation-result-success">
+
+            <div className="invitation-result-head">
+
+              <span className="invitation-result-icon">
+                {"✓"}
+              </span>
+
+              <div>
+                <h3>
+                  Admin Invitation Generated
+                </h3>
+                <p>
+                  Copy and share the link below with the new
+                  admin. The invitation expires in 24 hours.
+                </p>
+              </div>
+
+            </div>
+
+            <div className="invitation-meta-grid">
+
+              <div className="invitation-meta">
+                <span>
+                  INVITED CONTACT
+                </span>
+                <strong>
+                  {inviteResult.contact || "-"}
+                </strong>
+              </div>
+
+              <div className="invitation-meta">
+                <span>
+                  EXPIRES
+                </span>
+                <strong>
+                  {inviteResult.expires_at
+                    ? formatFullDate(inviteResult.expires_at)
+                    : "In 24 hours"}
+                </strong>
+              </div>
+
+            </div>
+
+            <div className="invitation-token-box">
+
+              <span className="invitation-token-label">
+                INVITATION LINK
+              </span>
+
+              <div className="invitation-token-readout">
+                <code>
+                  {invitationLink}
+                </code>
+              </div>
+
+            </div>
+
+            <button
+              className="primary-button invitation-copy-button"
+              type="button"
+              onClick={copyInviteLink}
+            >
+              {copiedInvite
+                ? "Copied ✓"
+                : "Copy Invitation Link"}
+            </button>
+
+          </div>
+        )}
+
+        {/* INVITATION HISTORY */}
+
+        <div className="comparison-section">
+
+          <div className="comparison-heading">
+
+            <div>
+
+              <span className="section-label">
+                GENERATED INVITATIONS
+              </span>
+
+              <h2>
+                Invitation History
+              </h2>
+
+            </div>
+
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={loadAdminInvitations}
+            >
+              Refresh
+            </button>
+
+          </div>
+
+          {adminInvitationsError && (
+            <div className="error-message">
+              {adminInvitationsError}
+            </div>
+          )}
+
+          {adminInvitationsLoading && (
+            <div className="loading-message">
+              <span className="loading-spinner"></span>
+              Loading invitations...
+            </div>
+          )}
+
+          {!adminInvitationsLoading &&
+            !adminInvitationsError &&
+            adminInvitations.length === 0 && (
+              <div className="history-empty">
+                <div className="history-empty-icon">
+                  {"⇪"}
+                </div>
+                <h3>
+                  No invitations generated yet.
+                </h3>
+                <p>
+                  Generated invitations will appear here.
+                </p>
+              </div>
+            )}
+
+          {!adminInvitationsLoading &&
+            !adminInvitationsError &&
+            adminInvitations.length > 0 && (
+              <div className="table-wrapper">
+
+                <table className="route-table admin-table">
+
+                  <thead>
+
+                    <tr>
+                      <th>Contact</th>
+                      <th>Created By</th>
+                      <th>Status</th>
+                      <th>Used</th>
+                      <th>Created At</th>
+                      <th>Expires At</th>
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {adminInvitations.map((item) => {
+
+                      const isUsed = item.used === true;
+
+                      const isExpired =
+                        !isUsed &&
+                        item.expires_at &&
+                        new Date(item.expires_at) < new Date();
+
+                      return (
+                        <tr key={item.invitation_id}>
+
+                          <td>
+                            <strong>
+                              {item.contact || "-"}
+                            </strong>
+                          </td>
+
+                          <td>
+                            {item.created_by || "-"}
+                          </td>
+
+                          <td>
+                            <span
+                              className={`invitation-status-badge ${
+                                isUsed
+                                  ? "invitation-badge-used"
+                                  : isExpired
+                                  ? "invitation-badge-expired"
+                                  : "invitation-badge-active"
+                              }`}
+                            >
+                              {isUsed
+                                ? "Used"
+                                : isExpired
+                                ? "Expired"
+                                : "Active"}
+                            </span>
+                          </td>
+
+                          <td>
+                            {isUsed ? "Yes" : "No"}
+                          </td>
+
+                          <td>
+                            <span className="history-date">
+                              {formatFullDate(item.created_at)}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span className="history-date">
+                              {formatFullDate(item.expires_at)}
+                            </span>
+                          </td>
+
+                        </tr>
+                      );
+                    })}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+            )}
+
+        </div>
+
+      </section>
+    );
+  };
   // MAIN LAYOUT
   // ==========================================
 
@@ -6645,6 +8190,46 @@ function App() {
                 Route Activity
 
               </button>
+
+              <button
+                className={
+                  activeNav === "User Feedback"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("User Feedback")
+                }
+              >
+
+                <span className="nav-icon">
+                  ❝
+                </span>
+
+                User Feedback
+
+              </button>
+
+              <button
+                className={
+                  activeNav === "Admin Invitations"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Admin Invitations")
+                }
+              >
+
+                <span className="nav-icon">
+                  ⇪
+                </span>
+
+                Admin Invitations
+
+              </button>
             </>
           ) : (
             /* ----------------------------------------
@@ -6748,7 +8333,27 @@ function App() {
                   ▤
                 </span>
 
-                My Shipments
+                Shipments
+
+              </button>
+
+              <button
+                className={
+                  activeNav === "Feedback"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Feedback")
+                }
+              >
+
+                <span className="nav-icon">
+                  ◈
+                </span>
+
+                Feedback
 
               </button>
 
@@ -6888,8 +8493,7 @@ function App() {
                     </strong>
 
                     <span>
-                      {profileContact ||
-                        profileRoleSubLabel}
+                      {profileRoleSubLabel}
                     </span>
 
                   </div>
@@ -6936,13 +8540,19 @@ function App() {
               </div>
             )}
 
-          </div>
 
+          </div>
         </header>
 
         {/* CONTENT */}
 
         <div className="content-area">
+
+          {/* Keying this wrapper by "view" forces a fresh mount
+              on every navigation, so the subtle page transition
+              and in-page entrance animations re-run each time. */}
+
+          <div className="view-transition" key={view}>
 
           {view === "home" &&
             renderHome()}
@@ -6968,6 +8578,9 @@ function App() {
           {view === "howto" &&
             renderHowToUse()}
 
+          {view === "feedback" &&
+            renderFeedback()}
+
           {isAdmin && view === "admin-home" &&
             renderAdminDashboard()}
 
@@ -6986,12 +8599,21 @@ function App() {
           {isAdmin && view === "admin-quotations" &&
             renderAdminQuotations()}
 
-        </div>
+          {isAdmin && view === "admin-feedback" &&
+            renderAdminFeedback()}
+
+          {isAdmin && view === "admin-invitations" &&
+            renderAdminInvitations()}
+
+          </div>
+
+                </div>
 
       </main>
 
     </div>
   );
+
 }
 
 export default App;
