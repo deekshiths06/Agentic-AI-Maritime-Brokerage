@@ -21,6 +21,9 @@ from app.agents.route_agent import analyze_route
 from app.agents.quotation_service import (
     generate_quotation
 )
+from app.services.ais_service import (
+    fetch_ais_vessels,
+)
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -471,6 +474,10 @@ class InvitationVerify(BaseModel):
     token: str
 
 
+class QuotationRejectRequest(BaseModel):
+    reason: str
+
+
 # ============================================================
 # HELPER - NORMALIZE CONTACT
 # ============================================================
@@ -914,6 +921,27 @@ def _save_route_history(
     return result.inserted_id
 
 
+def _serialize_utc_datetime(value):
+
+    # Datetimes are stored in UTC. Older records may be naive
+    # UTC datetimes; attach timezone info so the serialized
+    # value always carries an explicit UTC offset and the
+    # frontend can convert it to local time correctly.
+    if value is not None and isinstance(value, datetime):
+
+        if value.tzinfo is None:
+
+            value = value.replace(tzinfo=timezone.utc)
+
+        return value.isoformat()
+
+    if value is not None and isinstance(value, str):
+
+        return value
+
+    return None
+
+
 def _serialize_history_record(record):
 
     created_at = record.get("created_at")
@@ -960,6 +988,24 @@ def _serialize_history_record(record):
         ),
         "pricing": record.get("pricing"),
         "margin": record.get("margin"),
+        "approval_status": record.get(
+            "approval_status", ""
+        ),
+        "accepted_at": _serialize_utc_datetime(
+            record.get("accepted_at")
+        ),
+        "accepted_by": record.get("accepted_by", ""),
+        "approved_by": record.get("approved_by", ""),
+        "approved_at": _serialize_utc_datetime(
+            record.get("approved_at")
+        ),
+        "rejected_by": record.get("rejected_by", ""),
+        "rejection_reason": record.get(
+            "rejection_reason", ""
+        ),
+        "rejected_at": _serialize_utc_datetime(
+            record.get("rejected_at")
+        ),
         "created_at": (
             created_at.isoformat()
             if created_at
@@ -1013,10 +1059,301 @@ def get_locations():
         .tolist()
     )
 
+    # -----------------------------------------------------
+    # PORT COORDINATES
+    # Additive map of every port name to its real
+    # coordinates/country from routes.csv. Used by the
+    # Maritime Route Map to plot ports before an analysis.
+    # Existing clients only read origins/destinations, so
+    # this extra field is fully backward compatible.
+    # -----------------------------------------------------
+
+    port_fields = (
+        (
+            "origin",
+            "origin_latitude",
+            "origin_longitude",
+            "origin_country"
+        ),
+        (
+            "destination",
+            "destination_latitude",
+            "destination_longitude",
+            "destination_country"
+        )
+    )
+
+    ports = {}
+
+    for _, row in df.iterrows():
+
+        for (
+            port_field,
+            latitude_field,
+            longitude_field,
+            country_field
+        ) in port_fields:
+
+            port_name = str(
+                row.get(port_field, "")
+            ).strip()
+
+            if not port_name:
+                continue
+
+            if port_name in ports:
+                continue
+
+            try:
+
+                latitude = float(
+                    row.get(latitude_field, 0)
+                )
+
+                longitude = float(
+                    row.get(longitude_field, 0)
+                )
+
+            except (TypeError, ValueError):
+
+                continue
+
+            ports[port_name] = {
+                "latitude": latitude,
+                "longitude": longitude,
+                "country": str(
+                    row.get(country_field, "")
+                ).strip()
+            }
+
     return {
         "origins": origins,
-        "destinations": destinations
+        "destinations": destinations,
+        "ports": ports
     }
+
+
+# ============================================================
+# ROUTE NETWORK
+# ============================================================
+# Exposes the COMPLETE fixed maritime network built from
+# routes.csv: every unique port represented by the dataset and
+# every port-to-port connection (edge) with its route count.
+# The map loads this once and never rebuilds it per search.
+# This is reference data only - no user or private information.
+# ============================================================
+
+@app.get("/api/routes/network")
+def get_route_network():
+
+    import pandas as pd
+
+    df = pd.read_csv(
+        "app/routes.csv"
+    )
+
+    df.columns = (
+        df.columns
+        .str.strip()
+        .str.lower()
+    )
+
+    # -----------------------------------------------------
+    # COLLECT ALL UNIQUE PORTS WITH COORDINATES
+    # Origin and destination ports together form the fixed
+    # set of nodes in the maritime network.
+    # -----------------------------------------------------
+
+    port_fields = (
+        (
+            "origin",
+            "origin_latitude",
+            "origin_longitude",
+            "origin_country"
+        ),
+        (
+            "destination",
+            "destination_latitude",
+            "destination_longitude",
+            "destination_country"
+        )
+    )
+
+    ports = {}
+
+    for _, row in df.iterrows():
+
+        for (
+            port_field,
+            latitude_field,
+            longitude_field,
+            country_field
+        ) in port_fields:
+
+            port_name = str(
+                row.get(port_field, "")
+            ).strip()
+
+            if not port_name:
+                continue
+
+            if port_name in ports:
+                continue
+
+            try:
+
+                latitude = float(
+                    row.get(latitude_field, 0)
+                )
+
+                longitude = float(
+                    row.get(longitude_field, 0)
+                )
+
+            except (TypeError, ValueError):
+
+                continue
+
+            # Skip rows without a usable coordinate pair.
+            if latitude == 0 and longitude == 0:
+                continue
+
+            ports[port_name] = {
+                "latitude": latitude,
+                "longitude": longitude,
+                "country": str(
+                    row.get(country_field, "")
+                ).strip()
+            }
+
+    # -----------------------------------------------------
+    # COLLECT ALL UNIQUE ORIGIN -> DESTINATION EDGES
+    # Each edge aggregates how many route records connect
+    # that origin-destination pair in routes.csv.
+    # -----------------------------------------------------
+
+    edge_cache = {}
+
+    for _, row in df.iterrows():
+
+        origin = str(row.get("origin", "")).strip()
+
+        destination = str(
+            row.get("destination", "")
+        ).strip()
+
+        if not origin or not destination:
+            continue
+
+        key = (origin, destination)
+
+        if key not in edge_cache:
+
+            edge_cache[key] = {
+                "origin": origin,
+                "destination": destination,
+                "route_count": 0,
+                "min_transit_days": None,
+                "min_distance_nm": None
+            }
+
+        edge = edge_cache[key]
+
+        edge["route_count"] += 1
+
+        try:
+
+            transit_days = float(
+                row.get("transit_days", 0)
+            )
+
+            distance_nm = float(
+                row.get("distance_nm", 0)
+            )
+
+        except (TypeError, ValueError):
+
+            continue
+
+        if (
+            edge["min_transit_days"] is None
+            or transit_days < edge["min_transit_days"]
+        ):
+            edge["min_transit_days"] = transit_days
+
+        if (
+            edge["min_distance_nm"] is None
+            or distance_nm < edge["min_distance_nm"]
+        ):
+            edge["min_distance_nm"] = distance_nm
+
+    edges = sorted(
+        [
+            {
+                "origin": edge["origin"],
+                "destination": edge["destination"],
+                "route_count": edge["route_count"],
+                "min_transit_days": edge["min_transit_days"],
+                "min_distance_nm": edge["min_distance_nm"]
+            }
+            for edge in edge_cache.values()
+        ],
+        key=lambda edge: (
+            edge["origin"],
+            edge["destination"]
+        )
+    )
+
+    # -----------------------------------------------------
+    # ROUTE RECORD COUNT
+    # The complete number of route records in routes.csv is
+    # exposed as a summary metric. Individual route rows are
+    # intentionally NOT attached here: the fixed network only
+    # needs the ports and edges above, and a full 7800+ row
+    # JSON payload would massively bloat every map load.
+    # The Route Agent (/api/routes/analyze) already returns
+    # the searched route records with their own coordinates.
+    # -----------------------------------------------------
+
+    return {
+        "success": True,
+        "total_ports": len(ports),
+        "total_routes": int(len(df)),
+        "total_edges": len(edges),
+        "ports": ports,
+        "edges": edges
+    }
+
+
+# ============================================================
+# LIVE AIS VESSELS
+# ============================================================
+# Real AIS vessel positions from the AIS provider (AISHub).
+# The provider API key lives ONLY in the backend environment
+# and is never returned to the browser. The response ships a
+# small, normalized vessel list that the Maritime Route Map
+# renders as real vessel markers.
+#
+# When AIS_API_KEY is missing the endpoint still answers with
+# a friendly "not configured" payload so the route map never
+# crashes. Provider failures answer with an "unavailable"
+# payload - the dataset routes keep working either way.
+# ============================================================
+
+@app.get("/api/vessels")
+def get_ais_vessels(
+    min_lat: float = None,
+    min_lon: float = None,
+    max_lat: float = None,
+    max_lon: float = None
+):
+
+    return fetch_ais_vessels(
+        latmin=min_lat,
+        lonmin=min_lon,
+        latmax=max_lat,
+        lonmax=max_lon
+    )
 
 
 # ============================================================
@@ -1447,6 +1784,17 @@ def _serialize_shipment(shipment: dict) -> dict:
 
     created_at = shipment.get("created_at")
 
+    # Datetimes are stored in UTC. Older records may be
+    # naive UTC datetimes; attach timezone info so the
+    # serialized value always carries an explicit UTC
+    # offset and the frontend can convert it to India
+    # Standard Time (Asia/Kolkata) correctly.
+    if created_at is not None and created_at.tzinfo is None:
+
+        created_at = created_at.replace(
+            tzinfo=timezone.utc
+        )
+
     return {
         "shipment_id": shipment.get(
             "shipment_id", ""
@@ -1480,9 +1828,18 @@ def _serialize_shipment(shipment: dict) -> dict:
         "status": shipment.get(
             "status", SHIPMENT_STATUS_FLOW[0]
         ),
-        "status_history": (
-            shipment.get("status_history") or []
-        ),
+        "status_history": [
+            {
+                "status": entry.get("status", ""),
+                "at": _serialize_utc_datetime(
+                    entry.get("at")
+                )
+            }
+            for entry in (
+                shipment.get("status_history") or []
+            )
+            if isinstance(entry, dict)
+        ],
         "created_at": (
             created_at.isoformat()
             if created_at
@@ -1563,23 +1920,24 @@ def get_shipment_details(
 
 
 # ============================================================
-# ACCEPT QUOTATION -> CREATE SHIPMENT
+# QUOTATION APPROVAL WORKFLOW
 # ============================================================
-# The user submits a generated quotation for acceptance.
-# The backend validates that the quotation exists, belongs
-# to the current user, and creates one shipment per
-# quotation (no duplicates).
+# After a user accepts a quotation, the quotation is queued for
+# admin approval (approval_status = "pending_admin_approval").
+# A shipment is created ONLY after an admin approves it. If the
+# admin rejects it, no shipment is ever created and the rejection
+# reason is preserved for audit.
+#
+# Flow: Quotation -> User Accepts -> Pending Admin Approval ->
+#        Approved (shipment created) OR Rejected (reason stored).
 # ============================================================
 
-@app.post("/api/quotations/{quotation_id}/accept")
-def accept_quotation(
-    quotation_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-
-    # -------------------------------------------------
-    # VALIDATE QUOTATION ID
-    # -------------------------------------------------
+def _get_quotation_record_or_400(quotation_id):
+    """
+    Resolve a route_history record that is a generated
+    quotation. Raises HTTP errors for invalid references,
+    missing records and non-quotation records.
+    """
 
     try:
 
@@ -1616,32 +1974,43 @@ def accept_quotation(
             )
         )
 
-    # -------------------------------------------------
-    # OWNERSHIP CHECK
-    # -------------------------------------------------
+    return quotation_record
 
-    record_owner = str(
-        quotation_record.get("user_id", "") or ""
-    )
 
-    if record_owner and record_owner != current_user.get(
-        "user_id", ""
-    ):
+def _resolve_user_name(user_id: str) -> str:
+    """
+    Look up a user's display name. Missing or invalid
+    references safely return an empty string.
+    """
 
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "This quotation does not belong "
-                "to your account."
-            )
-        )
+    if not user_id:
+
+        return ""
+
+    try:
+
+        user = users_collection.find_one({
+            "_id": ObjectId(user_id)
+        })
+
+    except Exception:
+
+        return ""
+
+    return user.get("name", "") if user else ""
+
+
+def _create_shipment_document(quotation_record):
+    """
+    Build and insert the shipment for an approved quotation.
+
+    Idempotent: if a shipment already exists for this quotation
+    the existing document is returned and nothing new is inserted,
+    so the approval endpoint can never create duplicate shipments.
+    The original quotation pricing/margin is copied unchanged.
+    """
 
     quotation_record_id_str = str(quotation_record["_id"])
-
-    # -------------------------------------------------
-    # PREVENT DUPLICATE SHIPMENTS
-    # One quotation can only create one shipment.
-    # -------------------------------------------------
 
     existing_shipment = shipments_collection.find_one({
         "quotation_record_id": quotation_record_id_str
@@ -1649,32 +2018,19 @@ def accept_quotation(
 
     if existing_shipment:
 
-        return {
-            "success": True,
-            "already_exists": True,
-            "message": (
-                "A shipment was already created "
-                "for this quotation."
-            ),
-            "shipment": _serialize_shipment(
-                existing_shipment
-            )
-        }
-
-    # -------------------------------------------------
-    # CREATE SHIPMENT
-    # -------------------------------------------------
+        return existing_shipment
 
     shipment_id = _generate_shipment_id()
 
     shipment = {
         "shipment_id": shipment_id,
-        "user_id": current_user.get("user_id", ""),
-        "user_contact": (
-            current_user.get("contact", "")
-            or quotation_record.get("user_contact", "")
+        "user_id": quotation_record.get("user_id", ""),
+        "user_contact": quotation_record.get(
+            "user_contact", ""
         ),
-        "user_name": current_user.get("name", ""),
+        "user_name": _resolve_user_name(
+            quotation_record.get("user_id", "")
+        ),
         "origin": quotation_record.get("origin", ""),
         "destination": quotation_record.get(
             "destination", ""
@@ -1705,20 +2061,379 @@ def accept_quotation(
         "status": SHIPMENT_STATUS_FLOW[0],
         "status_history": [{
             "status": SHIPMENT_STATUS_FLOW[0],
-            "at": datetime.utcnow()
+            "at": datetime.now(timezone.utc)
         }],
-        "created_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc)
     }
 
     shipments_collection.insert_one(shipment)
 
+    return shipment
+
+
+# ============================================================
+# ACCEPT QUOTATION -> PENDING ADMIN APPROVAL
+# ============================================================
+# The user submits a generated quotation for acceptance.
+# The backend validates that the quotation exists, belongs
+# to the current user, marks it pending_admin_approval and
+# does NOT create a shipment. Shipment creation happens
+# only after an admin approves it.
+# ============================================================
+
+@app.post("/api/quotations/{quotation_id}/accept")
+def accept_quotation(
+    quotation_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+
+    quotation_record = _get_quotation_record_or_400(
+        quotation_id
+    )
+
+    # -------------------------------------------------
+    # OWNERSHIP CHECK
+    # -------------------------------------------------
+
+    record_owner = str(
+        quotation_record.get("user_id", "") or ""
+    )
+
+    if record_owner and record_owner != current_user.get(
+        "user_id", ""
+    ):
+
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This quotation does not belong "
+                "to your account."
+            )
+        )
+
+    quotation_record_id_str = str(quotation_record["_id"])
+
+    # -------------------------------------------------
+    # LEGACY / APPROVED QUOTATIONS
+    # A shipment already exists for this quotation
+    # (approved quotations, or quotations accepted
+    # before the admin approval gate). Idempotent.
+    # -------------------------------------------------
+
+    existing_shipment = shipments_collection.find_one({
+        "quotation_record_id": quotation_record_id_str
+    })
+
+    if existing_shipment:
+
+        return {
+            "success": True,
+            "already_exists": True,
+            "message": (
+                "A shipment was already created "
+                "for this quotation."
+            ),
+            "shipment": _serialize_shipment(
+                existing_shipment
+            )
+        }
+
+    # -------------------------------------------------
+    # REJECTED QUOTATION
+    # A rejected quotation cannot be re-accepted.
+    # -------------------------------------------------
+
+    existing_approval_status = quotation_record.get(
+        "approval_status", ""
+    )
+
+    if existing_approval_status == "rejected":
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This quotation was rejected by admin "
+                "and cannot be accepted."
+            )
+        )
+
+    # -------------------------------------------------
+    # ALREADY PENDING
+    # Re-accepting a pending quotation is a no-op.
+    # -------------------------------------------------
+
+    if existing_approval_status == "pending_admin_approval":
+
+        return {
+            "success": True,
+            "already_accepted": True,
+            "approval_status": "pending_admin_approval",
+            "message": (
+                "This quotation is already pending "
+                "admin approval."
+            )
+        }
+
+    if existing_approval_status == "approved":
+
+        # Very rare edge case: marked approved but the
+        # shipment document is missing. Queue it for the
+        # admin to (re)approve rather than silently
+        # creating a shipment on accept.
+        return {
+            "success": True,
+            "already_accepted": True,
+            "approval_status": "pending_admin_approval",
+            "message": (
+                "This quotation is being processed "
+                "for shipment creation."
+            )
+        }
+
+    # -------------------------------------------------
+    # MARK PENDING ADMIN APPROVAL
+    # The quotation data, pricing and margin are left
+    # untouched. An audit trail is recorded.
+    # -------------------------------------------------
+
+    accepted_at = datetime.now(timezone.utc)
+
+    route_history_collection.update_one(
+        {"_id": quotation_record["_id"]},
+        {"$set": {
+            "approval_status": "pending_admin_approval",
+            "accepted_at": accepted_at,
+            "accepted_by": (
+                current_user.get("name", "")
+                or current_user.get("contact", "")
+            )
+        }}
+    )
+
     return {
         "success": True,
+        "pending": True,
+        "approval_status": "pending_admin_approval",
         "message": (
-            "Shipment created successfully. "
-            f"Your shipment ID is {shipment_id}."
+            "Quotation accepted successfully. Your "
+            "quotation is now pending admin approval. "
+            "Your shipment will be created once an "
+            "admin approves it."
+        )
+    }
+
+
+# ============================================================
+# ADMIN - APPROVE QUOTATION
+# ============================================================
+# Marks the quotation approved and creates the shipment using
+# the existing shipment workflow. Idempotent: calling this
+# endpoint twice never creates a second shipment.
+# ============================================================
+
+@app.post("/api/admin/quotations/{quotation_id}/approve")
+def approve_quotation(
+    quotation_id: str,
+    current_user: dict = Depends(require_admin)
+):
+
+    quotation_record = _get_quotation_record_or_400(
+        quotation_id
+    )
+
+    quotation_record_id_str = str(quotation_record["_id"])
+
+    existing_approval_status = quotation_record.get(
+        "approval_status", ""
+    )
+
+    if existing_approval_status == "rejected":
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This quotation was already rejected "
+                "and cannot be approved."
+            )
+        )
+
+    # -------------------------------------------------
+    # IDEMPOTENT RE-APPROVAL
+    # An already-approved quotation is returned with its
+    # existing shipment. No duplicate is ever created.
+    # -------------------------------------------------
+
+    if existing_approval_status == "approved":
+
+        existing_shipment = shipments_collection.find_one({
+            "quotation_record_id": quotation_record_id_str
+        })
+
+        if existing_shipment:
+
+            return {
+                "success": True,
+                "already_approved": True,
+                "approval_status": "approved",
+                "message": (
+                    "This quotation was already approved."
+                ),
+                "shipment": _serialize_shipment(
+                    existing_shipment
+                )
+            }
+
+    # -------------------------------------------------
+    # MARK APPROVED
+    # Original pricing/margin is never recalculated here.
+    # -------------------------------------------------
+
+    approved_at = datetime.now(timezone.utc)
+
+    route_history_collection.update_one(
+        {"_id": quotation_record["_id"]},
+        {"$set": {
+            "approval_status": "approved",
+            "approved_by": (
+                current_user.get("name", "")
+                or current_user.get("contact", "")
+            ),
+            "approved_at": approved_at
+        }}
+    )
+
+    # -------------------------------------------------
+    # CREATE SHIPMENT
+    # Reuses the existing shipment creation logic and
+    # starts at the first status ("Booking Confirmed").
+    # -------------------------------------------------
+
+    shipment = _create_shipment_document(quotation_record)
+
+    return {
+        "success": True,
+        "approval_status": "approved",
+        "message": (
+            "Quotation approved. Shipment "
+            f"{shipment['shipment_id']} has been created."
         ),
         "shipment": _serialize_shipment(shipment)
+    }
+
+
+# ============================================================
+# ADMIN - REJECT QUOTATION
+# ============================================================
+# Requires a non-empty rejection reason. The quotation is
+# preserved (never deleted), no shipment is created, and the
+# rejection details are stored for audit. Idempotent.
+# ============================================================
+
+@app.post("/api/admin/quotations/{quotation_id}/reject")
+def reject_quotation(
+    quotation_id: str,
+    request: QuotationRejectRequest,
+    current_user: dict = Depends(require_admin)
+):
+
+    reason = request.reason.strip()
+
+    if not reason:
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Please provide a reason for rejecting "
+                "this quotation."
+            )
+        )
+
+    quotation_record = _get_quotation_record_or_400(
+        quotation_id
+    )
+
+    quotation_record_id_str = str(quotation_record["_id"])
+
+    existing_approval_status = quotation_record.get(
+        "approval_status", ""
+    )
+
+    # -------------------------------------------------
+    # A quotation that already produced a shipment can
+    # never be rejected afterwards.
+    # -------------------------------------------------
+
+    existing_shipment = shipments_collection.find_one({
+        "quotation_record_id": quotation_record_id_str
+    })
+
+    if existing_shipment:
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This quotation already has a shipment "
+                "and cannot be rejected."
+            )
+        )
+
+    if existing_approval_status == "approved":
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This quotation has already been "
+                "approved."
+            )
+        )
+
+    # -------------------------------------------------
+    # IDEMPOTENT RE-REJECTION
+    # -------------------------------------------------
+
+    if existing_approval_status == "rejected":
+
+        return {
+            "success": True,
+            "already_rejected": True,
+            "approval_status": "rejected",
+            "message": (
+                "This quotation was already rejected."
+            ),
+            "reason": quotation_record.get(
+                "rejection_reason", ""
+            )
+        }
+
+    # -------------------------------------------------
+    # MARK REJECTED
+    # The quotation and its pricing are preserved and
+    # no shipment is created.
+    # -------------------------------------------------
+
+    rejected_at = datetime.now(timezone.utc)
+
+    route_history_collection.update_one(
+        {"_id": quotation_record["_id"]},
+        {"$set": {
+            "approval_status": "rejected",
+            "rejection_reason": reason,
+            "rejected_by": (
+                current_user.get("name", "")
+                or current_user.get("contact", "")
+            ),
+            "rejected_at": rejected_at
+        }}
+    )
+
+    return {
+        "success": True,
+        "approval_status": "rejected",
+        "message": (
+            "Quotation rejected. The customer has been "
+            "notified of the decision."
+        ),
+        "reason": reason
     }
 
 
@@ -2000,7 +2715,7 @@ def update_shipment_status(
             )
         )
 
-    updated_at = datetime.utcnow()
+    updated_at = datetime.now(timezone.utc)
 
     shipments_collection.update_one(
         {"_id": shipment["_id"]},

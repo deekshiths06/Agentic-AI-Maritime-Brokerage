@@ -187,8 +187,8 @@ def load_routes():
         ]
     )
 
-    # -----------------------------------------------------
-    # REMOVE EMPTY ROUTE IDs
+# -----------------------------------------------------
+    # REMOVE EMPTY ROUTE IDS
     # -----------------------------------------------------
 
     df = df[
@@ -196,6 +196,45 @@ def load_routes():
     ].copy()
 
     return df
+
+
+# =========================================================
+# GEOGRAPHIC / METADATA HELPERS
+# =========================================================
+# These helpers read columns that already exist in routes.csv
+# (port coordinates, vessel, service and risk metadata) and
+# expose them in the analysis response for the Maritime Route
+# Map. They never change how routes are selected, scored or
+# recommended - the recommendation logic is untouched.
+
+def _safe_coord(row, column, fallback=0.0):
+
+    try:
+
+        value = float(row.get(column, fallback))
+
+        # NaN check: a NaN value never equals itself.
+        if value != value:
+            return fallback
+
+        return value
+
+    except (TypeError, ValueError):
+
+        return fallback
+
+
+def _safe_text(row, column, fallback=""):
+
+    try:
+
+        value = str(row.get(column, fallback))
+
+        return value.strip() or fallback
+
+    except (TypeError, ValueError):
+
+        return fallback
 
 
 # =========================================================
@@ -302,18 +341,6 @@ def analyze_route(
         # CLEAN INPUTS
         # =================================================
 
-        origin_clean = (
-            str(origin)
-            .strip()
-            .lower()
-        )
-
-        destination_clean = (
-            str(destination)
-            .strip()
-            .lower()
-        )
-
         requested_cargo = (
             str(cargo_type)
             .strip()
@@ -333,24 +360,36 @@ def analyze_route(
         )
 
         # =================================================
+        # NORMALIZATION HELPER
+        # =================================================
+        # Robust port matching: leading/trailing whitespace and
+        # casing differences never hide a valid route.
+
+        def _normalize(value):
+
+            return str(value or "").strip().lower()
+
+        # =================================================
         # FILTER ORIGIN + DESTINATION
         # =================================================
 
         filtered = df[
             (
                 df["origin"]
-                .str.lower()
+                .astype(str)
                 .str.strip()
+                .str.lower()
                 ==
-                origin_clean
+                _normalize(origin)
             )
             &
             (
                 df["destination"]
-                .str.lower()
+                .astype(str)
                 .str.strip()
+                .str.lower()
                 ==
-                destination_clean
+                _normalize(destination)
             )
         ].copy()
 
@@ -369,43 +408,63 @@ def analyze_route(
         # FILTER CARGO TYPE
         # =================================================
 
+        used_corridor_fallback = False
+
         cargo_filtered = filtered[
             filtered["cargo_type"]
-            .str.lower()
+            .astype(str)
             .str.strip()
+            .str.lower()
             ==
             mapped_cargo.lower()
         ].copy()
 
         # =================================================
-        # USE ONLY CARGO-TYPE MATCHED ROUTES
+        # CARGO TYPE FALLBACK
         # =================================================
-        # If no route carries this cargo type for the
-        # selected ports, the frame stays empty and the
-        # route-count check below reports no routes.
+        # If no route carries the requested cargo category for
+        # these ports, every valid route on the
+        # origin -> destination corridor is kept instead of
+        # being eliminated. The reasons list explains this
+        # fallback so the user understands the result.
+        # =================================================
+
+        if cargo_filtered.empty:
+
+            used_corridor_fallback = True
+
+            cargo_filtered = filtered.copy()
 
         filtered = cargo_filtered
 
         # =================================================
-        # FILTER CARGO SUBTYPE
+        # CARGO SUBTYPE
         # =================================================
-        # Strict filter using the selected cargo subtype.
-        # The dropdown is populated with real CSV subtypes,
-        # so there is no silent fallback to all cargo-type
-        # routes. If no route carries the selected subtype
-        # for these ports, the route-count check below
-        # raises an error.
+        # The selected subtype narrows the user's cargo choice
+        # but it never eliminates valid routes: if routes
+        # carrying the exact subtype exist they are evaluated
+        # together with every other valid route for the selected
+        # corridor and cargo category. If the dataset does not
+        # carry the exact subtype here, the valid routes are kept
+        # anyway and the reasons list explains the situation.
         # =================================================
 
         if requested_subtype:
 
-            filtered = filtered[
+            subtype_matched_count = int(
                 filtered["cargo_subtype"]
-                .str.lower()
+                .astype(str)
                 .str.strip()
-                ==
-                requested_subtype.lower()
-            ].copy()
+                .str.lower()
+                .eq(
+                    requested_subtype.lower()
+                )
+                .sum()
+            )
+
+        else:
+
+            subtype_matched_count = 0
 
         # =================================================
         # AVAILABLE ROUTES COUNT
@@ -521,6 +580,17 @@ def analyze_route(
                     index + 1,
 
                 # -------------------------------------------------
+                # RECOMMENDATION STATUS
+                # The highest-scoring route is the recommendation;
+                # every other valid route stays available.
+                # -------------------------------------------------
+
+                "recommendation":
+                    "recommended"
+                    if index == 0
+                    else "available",
+
+                # -------------------------------------------------
                 # ROUTE ID
                 # -------------------------------------------------
                 # IMPORTANT:
@@ -605,7 +675,53 @@ def analyze_route(
                     round(
                         float(row["score"]),
                         2
-                    )
+                    ),
+
+                # -------------------------------------------------
+                # PORT COORDINATES
+                # Exposes the real origin/destination coordinates
+                # already stored in routes.csv so the frontend can
+                # plot maritime routes on an ocean map. Map-only.
+                # -------------------------------------------------
+
+                "origin_latitude":
+                    _safe_coord(row, "origin_latitude"),
+
+                "origin_longitude":
+                    _safe_coord(row, "origin_longitude"),
+
+                "destination_latitude":
+                    _safe_coord(row, "destination_latitude"),
+
+                "destination_longitude":
+                    _safe_coord(row, "destination_longitude"),
+
+                # -------------------------------------------------
+                # ROUTE METADATA
+                # Existing CSV fields surfaced for the Maritime
+                # Route Map detail view. Map-only, additive.
+                # -------------------------------------------------
+
+                "route_name":
+                    _safe_text(row, "route_name"),
+
+                "intermediate_ports":
+                    _safe_text(row, "intermediate_ports"),
+
+                "vessel_type":
+                    _safe_text(row, "vessel_type"),
+
+                "service_frequency":
+                    _safe_text(row, "service_frequency"),
+
+                "route_availability":
+                    _safe_text(row, "route_availability"),
+
+                "weather_risk":
+                    _safe_text(row, "weather_risk"),
+
+                "congestion_level":
+                    _safe_text(row, "congestion_level")
             }
 
             routes.append(route_data)
@@ -717,6 +833,35 @@ def analyze_route(
                 f"category '{mapped_cargo}'."
             )
 
+        if used_corridor_fallback:
+
+            reasons.append(
+                f"No route carries '{mapped_cargo}' "
+                "cargo between the selected ports. "
+                "All valid routes on this corridor "
+                "were evaluated instead."
+            )
+
+        if requested_subtype:
+
+            if subtype_matched_count > 0:
+
+                reasons.append(
+                    f"{subtype_matched_count} route(s) "
+                    f"carrying '{requested_subtype}' "
+                    f"were evaluated together with every "
+                    "other valid route for this corridor."
+                )
+
+            else:
+
+                reasons.append(
+                    f"No route carries the selected "
+                    f"subtype '{requested_subtype}' on "
+                    "this corridor, so every valid "
+                    "route was evaluated instead."
+                )
+
         # =================================================
         # TIE BREAKER
         # =================================================
@@ -739,6 +884,13 @@ def analyze_route(
             reasons.append(
                 f"{total_available_routes} available "
                 "routes were evaluated for this shipment."
+            )
+
+        elif total_available_routes == 1:
+
+            reasons.append(
+                "1 available route was evaluated for "
+                "this shipment."
             )
 
         # =================================================

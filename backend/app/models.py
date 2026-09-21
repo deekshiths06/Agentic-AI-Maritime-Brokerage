@@ -22,10 +22,16 @@ class RouteRequest(BaseModel):
         min_length=1
     )
 
-    cargo_subtype: str = Field(
-        ...,
-        min_length=1
-    )
+    # -----------------------------------------------------
+    # CARGO SUBTYPE
+    # Optional since the Maritime Route Map analyses a route
+    # by cargo type alone, without a subtype. When empty,
+    # the Route Agent evaluates every route that carries the
+    # selected cargo type between the two ports. Route
+    # Intelligence and Quotation flows still send a subtype.
+    # -----------------------------------------------------
+
+    cargo_subtype: str = ""
 
     containers: int = Field(
         ...,

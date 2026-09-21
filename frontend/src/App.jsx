@@ -1,64 +1,72 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
-const howToSteps = [
+import MaritimeRouteMap from "./components/MaritimeRouteMap.jsx";
+import MapErrorBoundary from "./components/MapErrorBoundary.jsx";
+import { alternativeColorFor } from "./utils/maritimeGeometry";
+
+// ==========================================
+// ONE UNIFIED "HOW TO USE" WORKFLOW
+// Consolidates the former step cards and the
+// logic diagram into a single end-to-end flow
+// covering user actions AND the internal AI
+// agents (Route, Pricing, Margin) inline.
+// ==========================================
+
+const howToFlow = [
   {
     icon: "◉",
     title: "Login to Maritime AI",
     description:
       "Login using your registered email or mobile number and password to access the dashboard.",
+    system: "",
   },
   {
     icon: "⇢",
-    title: "Select Your Route",
+    title: "Enter Shipment Requirements",
     description:
-      "Go to Route Intelligence and select the origin and destination for your shipment.",
-  },
-  {
-    icon: "▣",
-    title: "Choose Cargo Details",
-    description:
-      "Select the cargo type and the available cargo subtype for your shipment.",
-  },
-  {
-    icon: "▤",
-    title: "Enter Container Quantity",
-    description:
-      "Enter the number of containers required for the shipment.",
+      "In Route Intelligence, choose the origin port, destination port, cargo type, cargo subtype and the number of containers.",
+    system: "",
   },
   {
     icon: "⌖",
     title: "Analyze Route",
     description:
-      "Click Analyze Route. The Route Agent evaluates available routes and recommends the most suitable route.",
+      "The Route Agent evaluates every available route on the corridor and returns the recommended route with transit time, distance and transshipments.",
+    system: "Route Agent",
+  },
+  {
+    icon: "▣",
+    title: "Review the Recommended Route",
+    description:
+      "Inspect the recommended route on the Maritime Route Map and compare the alternatives, then select the option that fits your schedule.",
+    system: "",
   },
   {
     icon: "$",
     title: "Generate Quotation",
     description:
-      "Generate the pricing and margin quotation using the Pricing Agent and Margin Agent.",
+      "The Pricing Agent computes the operating and demand-adjusted cost, while the Margin Agent sets the selling price, expected profit and achieved margin.",
+    system: "Pricing Agent · Margin Agent",
   },
   {
     icon: "%",
-    title: "Review Pricing & Margin",
+    title: "Accept Quotation & Submit for Approval",
     description:
-      "Review operating cost, demand-adjusted cost, selling price, expected profit, and achieved margin.",
+      "Accept the quotation to submit it for admin approval. Once an admin approves it, a shipment record is created automatically and appears in My Shipments.",
+    system: "",
   },
   {
     icon: "◇",
-    title: "View Route History",
+    title: "Track Shipment Status",
     description:
-      "Open Route History to review your previous route analyses and generated quotations.",
+      "The shipment advances through the controlled status flow — from Booking Confirmed to Delivered. This is a workflow simulation, not live vessel tracking.",
+    system: "",
   },
-];
-
-const howToWorkflow = [
-  { icon: "◉", label: "Login" },
-  { icon: "⇢", label: "Route Intelligence" },
-  { icon: "⌖", label: "Analyze Route" },
-  { icon: "%", label: "Pricing & Margin" },
-  { icon: "$", label: "Generate Quotation" },
-  { icon: "▤", label: "Accept Quotation" },
-  { icon: "◇", label: "Track Shipment" },
 ];
 
 // ==========================================
@@ -148,6 +156,171 @@ function AnimatedNumber({
   );
 }
 
+// ==========================================
+// QUOTATION APPROVAL STATUS LABELS
+// Maps the backend approval_status value to
+// the customer-facing labels. Internal fields
+// (margin targets, expected profit, pricing
+// formulas) are never exposed here.
+// ==========================================
+
+const approvalStatusClass = (status) => {
+  if (status === "rejected") return "approval-status-rejected";
+  if (status === "approved") return "approval-status-approved";
+  return "approval-status-pending";
+};
+
+const approvalStatusLabel = (status) => {
+  if (status === "approved") return "Approved by Admin";
+  if (status === "rejected") return "Rejected by Admin";
+  return "Pending Admin Approval";
+};
+
+function ApprovalStatusBadge({ item }) {
+  const status = item?.approval_status || "";
+
+  if (!status) return null;
+
+  const rejectionReason = item?.rejection_reason || "";
+
+  return (
+    <div className="approval-status-cell">
+      <span
+        className={`approval-status-pill ${approvalStatusClass(
+          status
+        )}`}
+      >
+        {approvalStatusLabel(status)}
+      </span>
+      {status === "rejected" && rejectionReason && (
+        <span className="approval-status-reason">
+          Reason: {rejectionReason}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// DATE/TIME FORMATTER (IST)
+// ==========================================
+// Formats any backend timestamp (stored in UTC)
+// into Indian Standard Time for display.
+//
+//   formatDateTime("2026-09-18T12:00:00Z")
+//   -> "18 Sep 2026, 05:30 PM"
+//
+// The conversion is done ONLY at display time via
+// the Intl timeZone "Asia/Kolkata". No manual
+// +5:30 offset is ever applied, and no IST value
+// is stored anywhere.
+// ==========================================
+
+const formatDateTime = (timestamp) => {
+  if (timestamp == null || timestamp === "") return "-";
+
+  const date =
+    timestamp instanceof Date
+      ? timestamp
+      : typeof timestamp === "string"
+      ? new Date(timestamp)
+      : new Date(Number(timestamp));
+
+  if (isNaN(date.getTime())) return String(timestamp);
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(date);
+
+  const value = {};
+  parts.forEach((part) => {
+    if (part.type !== "literal") value[part.type] = part.value;
+  });
+
+  if (!value.day || !value.month || !value.year) {
+    return String(timestamp);
+  }
+
+  return `${value.day} ${value.month} ${value.year}, ${value.hour}:${value.minute} ${value.dayPeriod}`;
+};
+
+// ==========================================
+// ROUTE HISTORY STATUS
+// ==========================================
+// Human-readable status for a Route History
+// record, derived ONLY from data the backend
+// already stores (quotation presence + the
+// existing approval_status field). No new
+// workflow is introduced.
+//
+// Priority: Rejected -> Approved -> Pending
+// Admin Approval -> Quotation Pending
+// Acceptance -> "-".
+// ==========================================
+
+const routeHistoryStatus = (item) => {
+  const approval = item?.approval_status || "";
+
+  if (approval === "rejected") return "rejected";
+  if (approval === "approved") return "approved";
+  if (approval === "pending_admin_approval") {
+    return "pending_admin_approval";
+  }
+  if (item && (item.pricing || item.margin)) {
+    return "quotation_pending_acceptance";
+  }
+  return null;
+};
+
+const routeHistoryStatusLabel = (status) => {
+  if (status === "rejected") return "Rejected";
+  if (status === "approved") return "Approved";
+  if (status === "pending_admin_approval") {
+    return "Pending Admin Approval";
+  }
+  if (status === "quotation_pending_acceptance") {
+    return "Quotation Pending Acceptance";
+  }
+  return "-";
+};
+
+const routeHistoryStatusClass = (status) => {
+  if (status === "rejected") return "approval-status-rejected";
+  if (status === "approved") return "approval-status-approved";
+  return "approval-status-pending";
+};
+
+function RouteHistoryStatus({ item }) {
+  const status = routeHistoryStatus(item);
+
+  if (!status) {
+    return <span className="approval-no-action">-</span>;
+  }
+
+  return (
+    <div className="approval-status-cell">
+      <span
+        className={`approval-status-pill ${routeHistoryStatusClass(
+          status
+        )}`}
+      >
+        {routeHistoryStatusLabel(status)}
+      </span>
+      {status === "rejected" && item?.rejection_reason && (
+        <span className="approval-status-reason">
+          Reason: {item.rejection_reason}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const readSavedUser = () => {
     try {
@@ -192,6 +365,33 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Full-screen Maritime Map state. The fixed network is loaded
+  // from the backend once; `mapBackTarget` decides where the map
+  // back button returns (route results or the admin dashboard).
+  const [mapRetryKey, setMapRetryKey] = useState(0);
+  const [mapBackTarget, setMapBackTarget] = useState("results");
+  const [selectedRouteId, setSelectedRouteId] = useState("");
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const [selectedShipmentId, setSelectedShipmentId] =
+    useState("");
+
+  // Complete fixed maritime network loaded once from the
+  // backend (GET /api/routes/network, built from routes.csv).
+  // The map renders this base network and highlights the
+  // recommended route on top of it; a new search only changes
+  // the highlight, never this set of ports and edges.
+  const [networkPorts, setNetworkPorts] = useState({});
+  const [networkEdges, setNetworkEdges] = useState([]);
+  const [networkLoading, setNetworkLoading] = useState(false);
+  const [networkError, setNetworkError] = useState("");
+
+  // Real AIS vessels (GET /api/vessels -> AISHub through the
+  // FastAPI backend). The provider API key never reaches the
+  // browser. Data is refreshed on a fixed interval, never on
+  // every render, and the backend caches provider responses.
+  const [vesselsData, setVesselsData] = useState(null);
+  const [vesselsLoading, setVesselsLoading] = useState(false);
+
   const [user] = useState(readSavedUser);
 
   const [history, setHistory] = useState([]);
@@ -204,6 +404,8 @@ function App() {
   const [quotationLoading, setQuotationLoading] =
     useState(false);
   const [quotationError, setQuotationError] = useState("");
+  const [quotationSuccess, setQuotationSuccess] =
+    useState("");
 
   // ==========================================
   // SHIPMENT STATE
@@ -248,6 +450,17 @@ function App() {
     useState(false);
   const [adminQuotationsError, setAdminQuotationsError] =
     useState("");
+  const [adminQuotationActionId, setAdminQuotationActionId] =
+    useState(null);
+  const [adminQuotationActionError, setAdminQuotationActionError] =
+    useState("");
+  const [adminQuotationActionMessage, setAdminQuotationActionMessage] =
+    useState("");
+  const [rejectQuotation, setRejectQuotation] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectingQuotation, setRejectingQuotation] =
+    useState(false);
+  const [rejectError, setRejectError] = useState("");
   const [adminShipments, setAdminShipments] = useState([]);
   const [adminShipmentsLoading, setAdminShipmentsLoading] =
     useState(false);
@@ -412,6 +625,97 @@ function App() {
     setAcceptError("");
     setAcceptResult(null);
   };
+
+  const goToResultMap = () => {
+    setView("result-map");
+    setActiveNav("Maritime Route Map");
+    setError("");
+    setMapBackTarget("results");
+  };
+
+  const goBackToResults = () => {
+    setView("results");
+    setActiveNav("Routes");
+    setError("");
+  };
+
+  const goBackToAdminDashboard = () => {
+    setView("admin-home");
+    setActiveNav("Admin Dashboard");
+    setError("");
+    loadAdminStats();
+  };
+
+  // ==========================================
+  // COMPLETE MARITIME NETWORK
+  // Loads the full fixed network (every unique port and every
+  // port-to-port connection from routes.csv) from the backend
+  // exactly once, the first time the map view is opened. It is
+  // kept in state afterwards so every later route search reuses
+  // the same complete network and only changes the highlight.
+  // ==========================================
+
+  useEffect(() => {
+    if (view !== "result-map") return;
+    if (Object.keys(networkPorts).length > 0) return;
+
+    let cancelled = false;
+
+    const loadRouteNetwork = async () => {
+      setNetworkLoading(true);
+      setNetworkError("");
+
+      try {
+        const response = await fetch("/api/routes/network");
+
+        if (!response.ok) {
+          throw new Error("Unable to load the maritime network.");
+        }
+
+        const data = await response.json();
+
+        if (cancelled) return;
+
+        setNetworkPorts(data?.ports || {});
+        setNetworkEdges(data?.edges || []);
+      } catch (err) {
+        if (cancelled) return;
+        console.error("Route network loading error:", err);
+        setNetworkError(
+          err.message ||
+            "Unable to load the maritime network."
+        );
+      } finally {
+        if (!cancelled) setNetworkLoading(false);
+      }
+    };
+
+    loadRouteNetwork();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, mapRetryKey]);
+
+  // ==========================================
+  // SHIPMENT CONTEXT ON MAP
+  // When the Maritime Route Map opens, the logged-in user's
+  // own shipments are loaded (never fabricated) so the map can
+  // visually associate a shipment with its route and status.
+  // The list is reused from My Shipments; nothing hard-coded.
+  // ==========================================
+
+  const shipmentsFetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (view !== "result-map") return;
+    if (shipmentsFetchedRef.current) return;
+
+    shipmentsFetchedRef.current = true;
+    loadShipments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   // ==========================================
   // ROUTE HISTORY
@@ -778,6 +1082,11 @@ function App() {
 
     setError("");
     setResult(null);
+    setQuotation(null);
+    setQuotationError("");
+    setQuotationSuccess("");
+    setAcceptError("");
+    setAcceptResult(null);
 
     if (!origin) {
       setError("Please select an origin.");
@@ -881,6 +1190,132 @@ function App() {
   };
 
   // ==========================================
+  // ANALYZE ON MARITIME MAP
+  // Same Route Agent call as handleAnalyze, but stays on
+  // the Maritime Route Map view so the result is drawn
+  // directly on the map with the route panel below it.
+  // ==========================================
+
+  const handleMapAnalyze = async (e) => {
+    e.preventDefault();
+
+    setError("");
+    setResult(null);
+    setQuotation(null);
+    setQuotationError("");
+    setQuotationSuccess("");
+    setAcceptError("");
+    setAcceptResult(null);
+    setSelectedRouteId("");
+    setSelectedShipmentId("");
+
+    if (!origin) {
+      setError("Please select an origin.");
+      return;
+    }
+
+    if (!destination) {
+      setError("Please select a destination.");
+      return;
+    }
+
+    if (!cargoType) {
+      setError("Please select a cargo type.");
+      return;
+    }
+
+    if (!cargoSubtype) {
+      if (cargoType && routeCargoSubtypes.length === 0) {
+        setError("No cargo subtypes available for this route.");
+      } else {
+        setError("Please select a cargo subtype.");
+      }
+      return;
+    }
+
+    if (!containers || Number(containers) < 1) {
+      setError("Number of containers must be at least 1.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch("/api/routes/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+
+        body: JSON.stringify({
+          origin,
+          destination,
+          cargo_type: cargoType,
+          cargo_subtype: cargoSubtype,
+          containers: Number(containers),
+          user_id: resolveUser().id || "",
+          user_contact: resolveUser().contact || "",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Unable to analyze the selected route."
+        );
+      }
+
+      if (data?.status === "not_found") {
+        setError(
+          data?.message ||
+            "No suitable routes were found for the selected shipment."
+        );
+        return;
+      }
+
+      if (data?.status === "error") {
+        setError(
+          data?.message ||
+            "Something went wrong while analyzing the route."
+        );
+        return;
+      }
+
+      setResult(data);
+
+      const rec =
+        data?.recommended_route ||
+        data?.recommended ||
+        data?.best_route ||
+        (Array.isArray(data?.route_options) &&
+        data.route_options.length > 0
+          ? data.route_options[0]
+          : null);
+
+      const recId = rec
+        ? String(
+            getValue(rec, ["route_id", "routeId"], "")
+          ).trim()
+        : "";
+
+      setSelectedRouteId(recId);
+    } catch (err) {
+      console.error("Route map analysis error:", err);
+
+      setError(
+        err.message ||
+          "Unable to connect to the route analysis service."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ==========================================
   // GENERATE QUOTATION
   // Calls the Pricing Agent and Margin Agent
   // pipeline to produce a dynamic quotation.
@@ -889,6 +1324,7 @@ function App() {
   const handleGenerateQuotation = async () => {
     setQuotationError("");
     setQuotation(null);
+    setQuotationSuccess("");
     setAcceptError("");
     setAcceptResult(null);
 
@@ -940,6 +1376,11 @@ function App() {
       }
 
       setQuotation(data);
+      setQuotationSuccess(
+        "Quotation generated successfully."
+      );
+      setActiveNav("Quotation");
+      setView("quotation");
     } catch (err) {
       console.error("Quotation generation error:", err);
       setQuotationError(
@@ -1017,6 +1458,107 @@ function App() {
       setShipmentsLoading(false);
     }
   };
+
+  // ==========================================
+  // LIVE AIS VESSELS
+  // Fetches real vessel positions (GET /api/vessels) from the
+  // FastAPI backend, which talks to the AIS provider (AISHub)
+  // with the API key that only exists server-side. The map
+  // keeps working regardless of the response: a provider that
+  // is not configured, or temporarily down, yields a friendly
+  // non-blocking status instead of an error. Nothing here is
+  // ever fabricated; when the provider has no data we simply
+  // say so.
+  // ==========================================
+
+  const loadVessels = useCallback(async (silent = false) => {
+    if (!silent) {
+      setVesselsLoading(true);
+    }
+
+    try {
+      const response = await fetch("/api/vessels", {
+        headers: { ...getAuthHeaders() },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setVesselsData({
+          status: "unavailable",
+          vessels: [],
+          message:
+            data?.detail ||
+            "Live vessel data temporarily unavailable.",
+          updatedAt: new Date().toISOString(),
+          source: "AIS",
+        });
+        return;
+      }
+
+      setVesselsData({
+        status:
+          data?.status === "ok"
+            ? "ok"
+            : data?.status || "unavailable",
+        vessels:
+          Array.isArray(data?.vessels) ? data.vessels : [],
+        message:
+          typeof data?.message === "string"
+            ? data.message
+            : "",
+        updatedAt:
+          typeof data?.updated_at === "string"
+            ? data.updated_at
+            : "",
+        source:
+          typeof data?.source === "string" ? data.source : "AIS",
+      });
+    } catch (err) {
+      console.error("Vessels loading error:", err);
+      setVesselsData({
+        status: "unavailable",
+        vessels: [],
+        message:
+          "Live vessel data temporarily unavailable.",
+        updatedAt: new Date().toISOString(),
+        source: "AIS",
+      });
+    } finally {
+      if (!silent) {
+        setVesselsLoading(false);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const refreshVessels = useCallback(() => {
+    loadVessels();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load AIS data once when the Maritime Route Map opens, then
+  // keep it fresh on a fixed interval. The backend caches the
+  // provider response so the browser refresh rate is harmless.
+  const vesselsFetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (view !== "result-map") return;
+    if (vesselsFetchedRef.current) {
+      refreshVessels();
+      return;
+    }
+
+    vesselsFetchedRef.current = true;
+    loadVessels();
+
+    const timer = window.setInterval(() => {
+      refreshVessels();
+    }, 300000);
+
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, mapRetryKey]);
 
   // ==========================================
   // SHIPMENT DETAILS
@@ -1358,6 +1900,136 @@ function App() {
       );
     } finally {
       setAdminQuotationsLoading(false);
+    }
+  };
+
+  // ==========================================
+  // ADMIN APPROVE / REJECT QUOTATION
+  // ==========================================
+
+  const handleApproveQuotation = (item) => {
+    const confirmed = window.confirm(
+      "Approve this quotation? Approving creates the customer's shipment."
+    );
+
+    if (!confirmed) return;
+
+    setAdminQuotationActionId(item.record_id);
+    setAdminQuotationActionError("");
+    setAdminQuotationActionMessage("");
+
+    adminFetch(
+      `/api/admin/quotations/${encodeURIComponent(
+        item.record_id
+      )}/approve`,
+      { method: "POST" }
+    )
+      .then(async (response) => {
+        const data = await response
+          .json()
+          .catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(
+            data?.detail ||
+              "Unable to approve this quotation."
+          );
+        }
+
+        setAdminQuotationActionMessage(
+          data?.message ||
+            (data?.already_approved
+              ? "This quotation was already approved."
+              : "Quotation approved.")
+        );
+        loadAdminQuotations();
+      })
+      .catch((err) => {
+        console.error(
+          "Admin quotation approval error:",
+          err
+        );
+        setAdminQuotationActionError(
+          err.message ||
+            "Unable to approve this quotation."
+        );
+      })
+      .finally(() => {
+        setAdminQuotationActionId(null);
+      });
+  };
+
+  const openRejectQuotationModal = (item) => {
+    setRejectQuotation(item);
+    setRejectReason("");
+    setRejectError("");
+  };
+
+  const closeRejectQuotationModal = () => {
+    if (rejectingQuotation) return;
+    setRejectQuotation(null);
+    setRejectReason("");
+    setRejectError("");
+  };
+
+  const handleRejectQuotation = async () => {
+    const reason = rejectReason.trim();
+
+    if (!reason) {
+      setRejectError(
+        "Please provide a reason for rejecting this quotation."
+      );
+      return;
+    }
+
+    if (!rejectQuotation) return;
+
+    setRejectingQuotation(true);
+    setRejectError("");
+
+    try {
+      const response = await adminFetch(
+        `/api/admin/quotations/${encodeURIComponent(
+          rejectQuotation.record_id
+        )}/reject`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ reason }),
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to reject this quotation."
+        );
+      }
+
+      setRejectQuotation(null);
+      setRejectReason("");
+      setAdminQuotationActionMessage(
+        data?.message ||
+          "Quotation rejected."
+      );
+      loadAdminQuotations();
+    } catch (err) {
+      console.error(
+        "Admin quotation rejection error:",
+        err
+      );
+      setRejectError(
+        err.message ||
+          "Unable to reject this quotation."
+      );
+    } finally {
+      setRejectingQuotation(false);
     }
   };
 
@@ -1922,32 +2594,58 @@ function App() {
   // ==========================================
 
   const getRouteName = (route) => {
-    const routeValue = getValue(
+    const routeOrigin = getValue(route, ["origin"], "");
+    const routeDestination = getValue(route, ["destination"], "");
+
+    const raw = getValue(
       route,
       ["route", "route_name", "name", "routeName"],
-      "Route"
+      ""
     );
 
-    if (!routeValue || routeValue === "Route") {
-      return "Route";
+    const parseText = (value) => {
+      const parts = String(value || "")
+        .split("|")[0]
+        .split("→")
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+      if (parts.length >= 2) {
+        return {
+          origin: parts[0].toLowerCase(),
+          destination: parts[parts.length - 1].toLowerCase(),
+          display:
+            parts.length >= 3
+              ? `${parts[0]} → ${parts[parts.length - 1]} via ${parts
+                  .slice(1, -1)
+                  .join(" → ")}`
+              : `${parts[0]} → ${parts[parts.length - 1]}`,
+        };
+      }
+      return null;
+    };
+
+    const parsed = parseText(raw);
+    const lowerOrigin = String(routeOrigin).toLowerCase();
+    const lowerDestination = String(routeDestination).toLowerCase();
+
+    if (
+      lowerOrigin &&
+      lowerDestination &&
+      parsed &&
+      parsed.origin === lowerOrigin &&
+      parsed.destination === lowerDestination
+    ) {
+      return parsed.display;
     }
 
-    const parts = String(routeValue)
-      .split("→")
-      .map((part) => part.trim())
-      .filter(Boolean);
-
-    // Origin → Destination via Intermediate Location(s)
-    if (parts.length >= 3) {
-      const routeOrigin = parts[0];
-      const routeDestination = parts[parts.length - 1];
-      const via = parts.slice(1, -1).join(" → ");
-
-      return `${routeOrigin} → ${routeDestination} via ${via}`;
+    if (lowerOrigin && lowerDestination) {
+      return `${routeOrigin} → ${routeDestination}`;
     }
 
-    // If only Origin → Destination exists
-    return String(routeValue).trim();
+    if (parsed) return parsed.display;
+
+    return String(raw).trim() || "Route";
   };
 
   // ==========================================
@@ -2242,6 +2940,14 @@ function App() {
       setView("admin-invitations");
       setError("");
       loadAdminInvitations();
+      return;
+    }
+
+    if (item === "Maritime Route Map") {
+      setView("result-map");
+      setActiveNav("Maritime Route Map");
+      setError("");
+      setMapBackTarget(isAdmin ? "admin" : "results");
       return;
     }
 
@@ -3308,6 +4014,33 @@ function App() {
           </div>
         )}
 
+        {/* GO TO MAPS */}
+
+        {recommendedRoute && (
+          <div className="go-to-maps-section result-animate result-animate-2">
+            <button
+              className="go-to-maps-button"
+              type="button"
+              onClick={goToResultMap}
+            >
+              <div className="go-to-maps-icon">
+                🗺️
+              </div>
+              <div className="go-to-maps-text">
+                <strong>
+                  GO TO MAPS
+                </strong>
+                <span>
+                  View this recommended route for {origin} → {destination} on the interactive map
+                </span>
+              </div>
+              <div className="go-to-maps-arrow">
+                →
+              </div>
+            </button>
+          </div>
+        )}
+
         {/* GET QUOTATION BUTTON */}
 
         {!quotation && !quotationLoading && (
@@ -3445,38 +4178,6 @@ function App() {
                 </span>
               </div>
 
-              <div className="quotation-row quotation-row-divider">
-                <span className="quotation-label">
-                  Operating Cost
-                </span>
-                <span className="quotation-value quotation-value-bold">
-                  ${quotation.pricing.operating_cost_usd?.toLocaleString(
-                    undefined,
-                    { minimumFractionDigits: 2 }
-                  ) || "-"}
-                </span>
-              </div>
-
-              <div className="quotation-row">
-                <span className="quotation-label">
-                  Demand Factor
-                </span>
-                <span className="quotation-value">
-                  {quotation.pricing.demand_factor?.toFixed(2) || "-"}
-                </span>
-              </div>
-
-              <div className="quotation-row quotation-row-highlight">
-                <span className="quotation-label">
-                  Demand Adjusted Cost
-                </span>
-                <span className="quotation-value quotation-value-primary">
-                  ${quotation.pricing.demand_adjusted_cost_usd?.toLocaleString(
-                    undefined,
-                    { minimumFractionDigits: 2 }
-                  ) || "-"}
-                </span>
-              </div>
               {isAdmin && (
                 <>
               <div className="quotation-row quotation-row-divider">
@@ -3640,9 +4341,7 @@ function App() {
 
         {/* ALTERNATIVE ROUTES WITH PRICING */}
 
-        {quotation &&
-          quotation.alternative_routes &&
-          quotation.alternative_routes.length > 0 && (
+        {quotation && (
           <div className="comparison-section result-animate result-animate-2">
             <div className="comparison-heading">
               <div>
@@ -3656,10 +4355,13 @@ function App() {
                 </h2>
               </div>
               <span className="route-count">
-                {quotation.alternative_routes.length} alternatives
+                {(quotation.alternative_routes || []).length}{" "}
+                alternatives
               </span>
             </div>
 
+            {quotation.alternative_routes &&
+            quotation.alternative_routes.length > 0 ? (
             <div className="table-wrapper">
               <table className="route-table">
                 <thead>
@@ -3727,6 +4429,12 @@ function App() {
                 </tbody>
               </table>
             </div>
+            ) : (
+              <div className="no-routes">
+                No alternative routes available for this
+                selection.
+              </div>
+            )}
           </div>
         )}
 
@@ -3756,6 +4464,13 @@ function App() {
             </span>
 
           </div>
+
+          {allRoutes.length === 1 && (
+            <div className="no-routes single-route-note">
+              Only one available route found for this
+              selection.
+            </div>
+          )}
 
           {allRoutes.length > 0 ? (
             <div className="table-wrapper">
@@ -3930,6 +4645,750 @@ function App() {
       </section>
     );
   };
+  // ==========================================
+  // FULL-SCREEN MARITIME MAP
+  // ==========================================
+  // A SEPARATE full-screen map view opened ONLY when the user
+  // clicks GO TO MAPS (or an admin opens it from the admin
+  // interface). It shows the COMPLETE fixed maritime network
+  // from routes.csv. The map page contains NO route summary,
+  // NO recommended-route card, NO Route Agent reasoning and NO
+  // shipment details - those belong to the Route Intelligence
+  // page and are intentionally not repeated here.
+  // ==========================================
+
+  const renderResultMap = () => {
+    const recRoute = recommendedRoute;
+    const routes = allRoutes.length > 0 ? allRoutes : [];
+
+    const recommendedRouteId = recRoute
+      ? String(
+          getValue(recRoute, ["route_id", "routeId"], "")
+        ).trim()
+      : "";
+
+    // Cargo subtype dependent state (same rules as the
+    // Route Intelligence search form).
+    const noSubtypes =
+      origin &&
+      destination &&
+      cargoType &&
+      !subtypesLoading &&
+      routeCargoSubtypes.length === 0;
+
+    const subtypeDisabled =
+      !origin ||
+      !destination ||
+      !cargoType ||
+      subtypesLoading ||
+      noSubtypes;
+
+    const subtypePlaceholder =
+      !origin
+        ? "Select origin first"
+        : !destination
+        ? "Select destination first"
+        : !cargoType
+        ? "Select cargo type first"
+        : subtypesLoading
+        ? "Loading cargo subtypes..."
+        : noSubtypes
+        ? "No cargo subtypes available"
+        : "Select cargo subtype";
+
+    const totalPorts = Object.keys(networkPorts).length;
+    const totalConnections = networkEdges.length;
+
+    // Active shipment context (only real backend shipments).
+    const activeShipment = selectedShipmentId
+      ? shipments.find(
+          (item) => item.shipment_id === selectedShipmentId
+        ) || null
+      : null;
+
+    // Zoom target. A selected shipment focuses its own route;
+    // otherwise the analyzed route (origin -> destination); when
+    // nothing is active the map fits all dataset ports.
+    const fitPoints = [];
+    if (activeShipment) {
+      const so = activeShipment.origin
+        ? networkPorts[activeShipment.origin]
+        : null;
+      const sd = activeShipment.destination
+        ? networkPorts[activeShipment.destination]
+        : null;
+      if (so) {
+        fitPoints.push([
+          Number(so.latitude),
+          Number(so.longitude),
+        ]);
+      }
+      if (sd) {
+        fitPoints.push([
+          Number(sd.latitude),
+          Number(sd.longitude),
+        ]);
+      }
+    }
+    if (
+      fitPoints.length < 2 &&
+      origin &&
+      networkPorts[origin]
+    ) {
+      fitPoints.push([
+        Number(networkPorts[origin].latitude),
+        Number(networkPorts[origin].longitude),
+      ]);
+    }
+    if (
+      fitPoints.length < 2 &&
+      destination &&
+      networkPorts[destination]
+    ) {
+      fitPoints.push([
+        Number(networkPorts[destination].latitude),
+        Number(networkPorts[destination].longitude),
+      ]);
+    }
+    const mapFitPoints = fitPoints.length === 2 ? fitPoints : null;
+    const mapFitKey = `${origin}->${destination}->${selectedRouteId}->${selectedShipmentId}`;
+
+    const mapTitle =
+      activeShipment
+        ? `${activeShipment.origin} → ${activeShipment.destination}`
+        : origin && destination
+          ? `${origin} → ${destination}`
+          : "Complete Maritime Network";
+
+    const backLabel =
+      mapBackTarget === "admin"
+        ? "← Back to Admin Dashboard"
+        : "← Back to Route Intelligence";
+
+    const handleBack = () => {
+      if (mapBackTarget === "admin") {
+        goBackToAdminDashboard();
+        return;
+      }
+      if (!result) {
+        goToSearch();
+        return;
+      }
+      goBackToResults();
+    };
+
+    // The route the summary reflects: the card the user clicked,
+    // otherwise the Route Agent's recommended route.
+    const activeRoute =
+      routes.find((route) => {
+        const rid = String(
+          getValue(route, ["route_id", "routeId"], "")
+        ).trim();
+        return Boolean(selectedRouteId) && rid === selectedRouteId;
+      }) || recRoute ||
+      null;
+
+    const activeIsRecommended = Boolean(
+      activeRoute &&
+        recommendedRouteId &&
+        String(
+          getValue(activeRoute, ["route_id", "routeId"], "")
+        ).trim() === recommendedRouteId
+    );
+
+    const handleSelectShipment = (value) => {
+      setSelectedShipmentId(value || "");
+      if (value) {
+        setSelectedRouteId("");
+      }
+    };
+
+    const handleSelectRoute = (route) => {
+      const routeId = String(
+        getValue(route, ["route_id", "routeId"], "")
+      ).trim();
+      setSelectedRouteId(routeId);
+      if (routeId || route) {
+        setSelectedShipmentId("");
+      }
+    };
+
+    return (
+      <section
+        className="maritime-map-view page-view"
+        data-testid="fullscreen-maritime-map"
+      >
+        {/* ---------- PAGE HEADER ---------- */}
+
+        <header className="maritime-map-header">
+          <button
+            className="maritime-map-back"
+            type="button"
+            onClick={handleBack}
+          >
+            {backLabel}
+          </button>
+
+          <div className="maritime-map-title">
+            <span className="maritime-map-title-label">
+              MARITIME ROUTE MAP
+            </span>
+            <strong>{mapTitle}</strong>
+            <div className="maritime-map-stats">
+              <span>
+                <b>{totalPorts}</b> dataset ports
+              </span>
+              <span>
+                <b>{totalConnections}</b> connections
+              </span>
+              {routes.length > 0 && (
+                <span>
+                  <b>{routes.length}</b> routes shown
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="maritime-map-actions">
+            <button
+              className="maritime-map-expand"
+              type="button"
+              onClick={() =>
+                setMapExpanded((value) => !value)
+              }
+            >
+              {mapExpanded ? "⤢  Hide expanded map" : "⤢  Expand map"}
+            </button>
+          </div>
+        </header>
+
+        {/* ---------- CONTROLS BAR ---------- */}
+
+        <form
+          className="maritime-map-controls"
+          onSubmit={handleMapAnalyze}
+        >
+          <div className="maritime-map-control">
+            <label htmlFor="map-origin">Origin</label>
+            <select
+              id="map-origin"
+              value={origin}
+              onChange={(e) =>
+                handleOriginChange(e.target.value)
+              }
+            >
+              <option value="">Select origin</option>
+              {origins.map((item, index) => (
+                <option value={item} key={`${item}-${index}`}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="maritime-map-control">
+            <label htmlFor="map-destination">Destination</label>
+            <select
+              id="map-destination"
+              value={destination}
+              onChange={(e) =>
+                handleDestinationChange(e.target.value)
+              }
+            >
+              <option value="">Select destination</option>
+              {destinations.map((item, index) => (
+                <option value={item} key={`${item}-${index}`}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="maritime-map-control">
+            <label htmlFor="map-cargo">Cargo Type</label>
+            <select
+              id="map-cargo"
+              value={cargoType}
+              onChange={(e) =>
+                handleCargoChange(e.target.value)
+              }
+            >
+              <option value="">Select cargo type</option>
+              {Object.keys(cargoSubtypesByType).map((type) => (
+                <option value={type} key={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="maritime-map-control">
+            <label htmlFor="map-subtype">Cargo Subtype</label>
+            <select
+              id="map-subtype"
+              value={cargoSubtype}
+              onChange={(e) =>
+                setCargoSubtype(e.target.value)
+              }
+              disabled={subtypeDisabled}
+            >
+              <option value="">{subtypePlaceholder}</option>
+              {routeCargoSubtypes.map((subtype) => (
+                <option value={subtype} key={subtype}>
+                  {subtype}
+                </option>
+              ))}
+            </select>
+            {noSubtypes && (
+              <span className="maritime-map-control-note">
+                No cargo subtypes available for this route.
+              </span>
+            )}
+          </div>
+
+          <div className="maritime-map-control">
+            <label htmlFor="map-containers">Containers</label>
+            <input
+              id="map-containers"
+              type="number"
+              min="1"
+              value={containers}
+              onChange={(e) =>
+                setContainers(e.target.value)
+              }
+              placeholder="TEU"
+            />
+          </div>
+
+          <button
+            className="maritime-map-analyze"
+            type="submit"
+            disabled={loading || subtypeDisabled}
+          >
+            {loading ? "Analyzing..." : "Analyze Route"}
+          </button>
+        </form>
+
+        {error && (
+          <div className="error-message">
+            {error}
+          </div>
+        )}
+
+        {/* ---------- SHIPMENT CONTEXT BAR ---------- */}
+
+        <div className="maritime-shipment-bar">
+          <span className="maritime-shipment-bar-label">
+            Shipment Context
+          </span>
+          <select
+            className="maritime-shipment-select"
+            value={selectedShipmentId}
+            onChange={(e) =>
+              handleSelectShipment(e.target.value)
+            }
+            disabled={shipmentsLoading}
+          >
+            <option value="">
+              {shipmentsLoading
+                ? "Loading your shipments…"
+                : shipments.length > 0
+                  ? "Associate a shipment with this map (optional)"
+                  : "No shipments yet — accept a quotation to create one"}
+            </option>
+            {shipments.map((shipment) => (
+              <option
+                value={shipment.shipment_id}
+                key={shipment.shipment_id}
+              >
+                {shipment.shipment_id} · {shipment.origin} →{" "}
+                {shipment.destination}
+              </option>
+            ))}
+          </select>
+          {shipmentsError && !shipmentsLoading && (
+            <span className="maritime-shipment-bar-note">
+              {shipmentsError}
+            </span>
+          )}
+          {activeShipment && (
+            <span
+              className={`maritime-shipment-status ${shipmentStatusClass(
+                activeShipment.status
+              )}`}
+            >
+              {activeShipment.status || "Booking Confirmed"}
+            </span>
+          )}
+        </div>
+
+        {/* ---------- LARGE MAP STAGE ---------- */}
+
+        <div
+          className={`maritime-map-stage${
+            mapExpanded ? " map-expanded" : ""
+          }`}
+        >
+          {Object.keys(networkPorts).length === 0 &&
+          networkLoading ? (
+            <div className="maritime-map-loading">
+              <span className="ai-agent-core" />
+              Loading the complete maritime network…
+            </div>
+          ) : networkError &&
+            Object.keys(networkPorts).length === 0 ? (
+            <div className="maritime-map-empty">
+              <strong>
+                Unable to load the maritime network
+              </strong>
+              <span>
+                The map could not connect to the route data
+                service. Please try again.
+              </span>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() =>
+                  setMapRetryKey((key) => key + 1)
+                }
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (
+            <MapErrorBoundary
+              onRetry={() =>
+                setMapRetryKey((key) => key + 1)
+              }
+            >
+              <MaritimeRouteMap
+                ports={networkPorts}
+                edges={networkEdges}
+                routes={routes}
+                recommendedRouteId={recommendedRouteId}
+                selectedRouteId={selectedRouteId}
+                onSelectRoute={handleSelectRoute}
+                origin={origin}
+                destination={destination}
+                fitPoints={mapFitPoints}
+                fitKey={mapFitKey}
+                shipment={activeShipment}
+                vessels={vesselsData?.vessels || []}
+                vesselsStatus={vesselsData?.status || ""}
+                vesselsMessage={vesselsData?.message || ""}
+                vesselsUpdatedAt={vesselsData?.updatedAt || ""}
+                vesselsSource={vesselsData?.source || ""}
+                onRefreshVessels={refreshVessels}
+              />
+            </MapErrorBoundary>
+          )}
+
+          {loading && (
+            <div className="maritime-map-loading">
+              <span className="ai-agent-core" />
+              AI Route Agent analyzing the route…
+            </div>
+          )}
+        </div>
+
+        {/* ---------- ROUTE INFORMATION PANEL ---------- */}
+
+        <div className="maritime-route-panel">
+          <div className="maritime-route-panel-head">
+            <span className="maritime-route-panel-title">
+              Route Information
+            </span>
+            <span className="maritime-route-panel-hint">
+              {routes.length > 0
+                ? "Click a route to highlight it on the map"
+                : "Analyze a route above to list options"}
+            </span>
+          </div>
+
+          {activeRoute && (
+            <div className="maritime-route-summary">
+              <div className="maritime-route-summary-head">
+                <span className="maritime-route-summary-title">
+                  Route Summary
+                </span>
+                <span
+                  className={`maritime-summary-status ${
+                    activeIsRecommended
+                      ? "recommended"
+                      : "available"
+                  }`}
+                >
+                  {activeIsRecommended
+                    ? "★ Recommended"
+                    : "◈ Available"}
+                </span>
+              </div>
+
+              <div className="maritime-summary-main">
+                <strong>
+                  {getValue(
+                    activeRoute,
+                    ["origin"],
+                    origin
+                  )}{" "}
+                  →{" "}
+                  {getValue(
+                    activeRoute,
+                    ["destination"],
+                    destination
+                  )}
+                </strong>
+                <span>
+                  {getRouteNumber(activeRoute)}
+                  {getRouteName(activeRoute) !== "Route"
+                    ? ` · ${getRouteName(activeRoute)}`
+                    : ""}
+                </span>
+              </div>
+
+              <div className="maritime-summary-metrics">
+                <div>
+                  <span>Transit</span>
+                  <b>{getTransit(activeRoute)}</b>
+                </div>
+                <div>
+                  <span>Distance</span>
+                  <b>{getDistance(activeRoute)}</b>
+                </div>
+                <div>
+                  <span>Transshipments</span>
+                  <b>{getTransshipments(activeRoute)}</b>
+                </div>
+                <div>
+                  <span>Status</span>
+                  <b>
+                    {activeIsRecommended
+                      ? "Recommended"
+                      : "Available"}
+                  </b>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeShipment && (
+            <div className="maritime-shipment-panel">
+              <div className="maritime-shipment-panel-head">
+                <span className="maritime-shipment-panel-title">
+                  Associated Shipment
+                </span>
+                <span
+                  className={`maritime-shipment-id ${
+                    shipmentStatusClass(activeShipment.status)
+                  }`}
+                >
+                  {activeShipment.shipment_id}
+                </span>
+              </div>
+
+              <div className="maritime-shipment-panel-body">
+                <div className="maritime-shipment-overview">
+                  <div className="maritime-shipment-route">
+                    <strong>{activeShipment.origin}</strong>
+                    <span>→</span>
+                    <strong>
+                      {activeShipment.destination}
+                    </strong>
+                  </div>
+                  <span className="maritime-shipment-route-name">
+                    {activeShipment.route_name || "Route"}
+                    {activeShipment.route_id
+                      ? ` · ${activeShipment.route_id}`
+                      : ""}
+                  </span>
+                  <div className="maritime-shipment-metrics">
+                    <span>
+                      Containers{" "}
+                      <b>
+                        {activeShipment.containers ?? "-"}
+                      </b>
+                    </span>
+                    <span>
+                      Transit{" "}
+                      <b>
+                        {activeShipment.transit_days
+                          ? `${activeShipment.transit_days} days`
+                          : "-"}
+                      </b>
+                    </span>
+                    <span>
+                      Distance{" "}
+                      <b>
+                        {activeShipment.distance_nm
+                          ? `${activeShipment.distance_nm} nm`
+                          : "-"}
+                      </b>
+                    </span>
+                    <span>
+                      Transshipments{" "}
+                      <b>
+                        {activeShipment.transshipments ??
+                          "-"}
+                      </b>
+                    </span>
+                  </div>
+                  <p className="maritime-shipment-note">
+                    Shipment route visualization — progress is
+                    a platform workflow simulation, not live
+                    GPS / AIS vessel tracking.
+                  </p>
+                </div>
+
+                <div className="maritime-journey">
+                  <span className="maritime-journey-title">
+                    Shipment Journey
+                  </span>
+                  <div className="maritime-journey-steps">
+                    {shipmentStatusFlow.map((stage) => {
+                      const stageIndex =
+                        shipmentStatusFlow.indexOf(stage);
+                      const currentIndex =
+                        shipmentStatusFlow.indexOf(
+                          activeShipment.status
+                        );
+                      const reached =
+                        currentIndex >= 0 &&
+                        stageIndex <= currentIndex;
+                      return (
+                        <div
+                          className={`maritime-journey-step ${
+                            reached ? "reached" : "pending"
+                          } ${
+                            stageIndex === currentIndex
+                              ? "current"
+                              : ""
+                          }`}
+                          key={stage}
+                        >
+                          <span className="maritime-journey-dot" />
+                          <span className="maritime-journey-label">
+                            {stage}
+                          </span>
+                          {stageIndex === currentIndex && (
+                            <span className="maritime-journey-current">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {routes.length > 0 ? (
+            <div className="maritime-route-cards">
+              {routes.map((route, index) => {
+                const routeId = String(
+                  getValue(route, ["route_id", "routeId"], "")
+                ).trim();
+
+                const isRecommended =
+                  Boolean(recommendedRouteId) &&
+                  routeId === recommendedRouteId;
+
+                const isSelected =
+                  !isRecommended &&
+                  Boolean(selectedRouteId) &&
+                  routeId === selectedRouteId;
+
+                const cardColor = isRecommended
+                  ? "#0d8a5e"
+                  : alternativeColorFor(routeId, routes, recommendedRouteId);
+
+                return (
+                  <div
+                    className={`maritime-route-card${
+                      isRecommended
+                        ? " recommended"
+                        : ""
+                    }${isSelected ? " selected" : ""}`}
+                    key={routeId || `${index}-route`}
+                    style={{ borderLeft: `4px solid ${cardColor}` }}
+                    onClick={() =>
+                      handleSelectRoute(route)
+                    }
+                    role="button"
+                    tabIndex="0"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleSelectRoute(route);
+                      }
+                    }}
+                  >
+                    <div className="maritime-route-card-head">
+                      <span
+                        className="maritime-route-card-color"
+                        style={{ background: cardColor }}
+                        aria-hidden="true"
+                      />
+                      <span className="maritime-route-badge">
+                        {isRecommended
+                          ? "★ Recommended"
+                          : `Alternative ${index}`}
+                      </span>
+                      <span className="maritime-route-rank">
+                        {getRouteNumber(route)}
+                      </span>
+                    </div>
+
+                    <div className="maritime-route-card-route">
+                      {getRouteName(route)}
+                    </div>
+
+                    <div className="maritime-route-card-metrics">
+                      <span>
+                        Transit <b>{getTransit(route)}</b>
+                      </span>
+                      <span>
+                        Distance <b>{getDistance(route)}</b>
+                      </span>
+                      <span>
+                        Transshipments{" "}
+                        <b>{getTransshipments(route)}</b>
+                      </span>
+                      <span>
+                        Score <b>{getScore(route)}</b>
+                      </span>
+                      <span
+                        className={`maritime-route-card-status ${
+                          isRecommended
+                            ? "recommended"
+                            : isSelected
+                              ? "selected"
+                              : "available"
+                        }`}
+                      >
+                        {isRecommended
+                          ? "Recommended"
+                          : isSelected
+                            ? "Selected"
+                            : "Available"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="maritime-route-empty">
+              {result
+                ? "No routes were returned for this combination. Try different cargo or route details."
+                : "Select an origin, destination, cargo type and containers above, then click Analyze Route. The recommended route and its alternatives will be highlighted on the map with a summary below."}
+            </div>
+          )}
+        </div>
+      </section>
+    );
+  };
 
   // ==========================================
   // ROUTE HISTORY PAGE
@@ -4101,6 +5560,10 @@ function App() {
                       </th>
 
                       <th>
+                        Status
+                      </th>
+
+                      <th>
 
                       </th>
 
@@ -4175,6 +5638,10 @@ function App() {
 
                         <td>
                           {item.transshipments ?? "-"}
+                        </td>
+
+                        <td>
+                          <RouteHistoryStatus item={item} />
                         </td>
 
                         <td>
@@ -4275,6 +5742,12 @@ function App() {
           </div>
 
         </div>
+
+        {quotationSuccess && (
+          <div className="success-message">
+            ✓ {quotationSuccess}
+          </div>
+        )}
 
         {!hasQuotation ? (
 
@@ -4946,7 +6419,7 @@ function App() {
                 <div>
 
                   <span className="section-label">
-                    CREATE SHIPMENT
+                    ACCEPT & GET APPROVAL
                   </span>
 
                   <h2>
@@ -4954,9 +6427,10 @@ function App() {
                   </h2>
 
                   <p>
-                    Accepting the quotation creates a shipment
-                    with the status "Booking Confirmed". A quotation
-                    must be accepted explicitly to create a shipment.
+                    Accepting the quotation submits it for
+                    admin approval. Once approved, a shipment
+                    is created automatically with the status
+                    "Booking Confirmed".
                   </p>
 
                 </div>
@@ -4976,56 +6450,93 @@ function App() {
               {acceptResult ? (
                 <div className="accept-success">
 
-                  <div
-                    className={
-                      acceptResult.already_exists
-                        ? "accept-success-icon accept-success-icon-existing"
-                        : "accept-success-icon"
-                    }
-                  >
-                    {acceptResult.already_exists ? "◉" : "✓"}
-                  </div>
+                  {acceptResult.pending ||
+                  acceptResult.already_accepted ? (
+                    <>
+                      <div className="accept-success-icon accept-success-icon-pending">
+                        ⏳
+                      </div>
 
-                  <h3>
-                    {acceptResult.already_exists
-                      ? "Shipment Already Exists"
-                      : "Shipment Created Successfully"}
-                  </h3>
+                      <h3>
+                        Quotation Pending Admin Approval
+                      </h3>
 
-                  <div className="accept-success-id">
-                    <span>
-                      Shipment ID:
-                    </span>
-                    <strong>
-                      {acceptResult.shipment?.shipment_id ||
-                        "-"}
-                    </strong>
-                  </div>
+                      <div className="accept-success-status">
+                        <span>
+                          Approval Status:
+                        </span>
+                        <strong>
+                          Pending Admin Approval
+                        </strong>
+                      </div>
 
-                  <div className="accept-success-status">
-                    <span>
-                      Status:
-                    </span>
-                    <strong>
-                      {acceptResult.shipment?.status ||
-                        "Booking Confirmed"}
-                    </strong>
-                  </div>
+                      <p className="accept-success-message">
+                        {acceptResult.message ||
+                          "Your quotation has been submitted for admin approval. Your shipment will be created once an admin approves it."}
+                      </p>
 
-                  <p className="accept-success-message">
-                    {acceptResult.message ||
-                      (acceptResult.already_exists
-                        ? "This quotation was already used to create a shipment."
-                        : "Your shipment has been booked successfully.")}
-                  </p>
+                      <button
+                        className="primary-button accept-view-shipments"
+                        type="button"
+                        onClick={goToShipments}
+                      >
+                        View My Shipments →
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        className={
+                          acceptResult.already_exists
+                            ? "accept-success-icon accept-success-icon-existing"
+                            : "accept-success-icon"
+                        }
+                      >
+                        {acceptResult.already_exists ? "◉" : "✓"}
+                      </div>
 
-                  <button
-                    className="primary-button accept-view-shipments"
-                    type="button"
-                    onClick={goToShipments}
-                  >
-                    View My Shipments →
-                  </button>
+                      <h3>
+                        {acceptResult.already_exists
+                          ? "Shipment Already Exists"
+                          : "Shipment Created Successfully"}
+                      </h3>
+
+                      <div className="accept-success-id">
+                        <span>
+                          Shipment ID:
+                        </span>
+                        <strong>
+                          {acceptResult.shipment?.shipment_id ||
+                            "-"}
+                        </strong>
+                      </div>
+
+                      <div className="accept-success-status">
+                        <span>
+                          Status:
+                        </span>
+                        <strong>
+                          {acceptResult.shipment?.status ||
+                            "Booking Confirmed"}
+                        </strong>
+                      </div>
+
+                      <p className="accept-success-message">
+                        {acceptResult.message ||
+                          (acceptResult.already_exists
+                            ? "This quotation was already used to create a shipment."
+                            : "Your shipment has been booked successfully.")}
+                      </p>
+
+                      <button
+                        className="primary-button accept-view-shipments"
+                        type="button"
+                        onClick={goToShipments}
+                      >
+                        View My Shipments →
+                      </button>
+                    </>
+                  )}
 
                 </div>
               ) : (
@@ -5107,131 +6618,79 @@ function App() {
             </h1>
 
             <p>
-              Follow these simple steps to analyze routes and
-              generate intelligent freight quotations.
+              One end-to-end workflow: enter your shipment
+              requirements, let the AI agents design and price
+              the best route, then track your shipment.
             </p>
 
           </div>
 
         </div>
 
-        {/* STEP CARDS */}
+        {/* ONE UNIFIED WORKFLOW */}
+        {/* Combines the user steps with the internal AI agents
+            (Route Agent, Pricing Agent, Margin Agent) inline,
+            so the process is a single flow — not two separate
+            explanations. */}
 
-        <div className="howto-grid">
+        <div className="howto-flow">
 
-          {(() => {
-            const steps = isAdmin
-              ? howToSteps
-              : howToSteps
-                  .filter(
-                    (step) =>
-                      step.title !==
-                      "Review Pricing & Margin"
-                  )
-                  .map((step) =>
-                    step.title ===
-                    "Generate Quotation"
-                      ? {
-                          ...step,
-                          description:
-                            "Generate a transparent, competitive quotation with a clear total price for your shipment.",
-                        }
-                      : step
-                  );
+          {howToFlow.map((step, index) => (
+            <React.Fragment key={step.title}>
 
-            return steps.map((step, index) => (
-            <article
-              className="howto-card"
-              key={step.title}
-            >
+              {index > 0 && (
+                <div
+                  className="howto-flow-arrow"
+                  aria-hidden="true"
+                >
+                  →
+                </div>
+              )}
 
-              <span className="howto-step-number">
-                {index + 1}
-              </span>
+              <article className="howto-card">
 
-              <div
-                className="howto-card-icon"
-                aria-hidden="true"
-              >
-                {step.icon}
-              </div>
+                <span className="howto-step-number">
+                  {index + 1}
+                </span>
 
-              <h3>
-                {step.title}
-              </h3>
-
-              <p>
-                {step.description}
-              </p>
-
-            </article>
-            ));
-            })()
-          }
-
-        </div>
-
-        {/* QUICK WORKFLOW */}
-
-        <div className="howto-workflow">
-
-          <div className="howto-workflow-heading">
-
-            <div>
-
-              <span className="section-label">
-                QUICK WORKFLOW
-              </span>
-
-              <h2>
-                Your Journey at a Glance
-              </h2>
-
-            </div>
-
-          </div>
-
-          <div className="howto-flow">
-
-            {howToWorkflow
-              .filter(
-                (step) =>
-                  isAdmin ||
-                  step.label !== "Pricing & Margin"
-              )
-              .map((step, index) => (
-              <React.Fragment key={step.label}>
-
-                {index > 0 && (
-                  <div
-                    className="howto-flow-arrow"
-                    aria-hidden="true"
-                  >
-                    ↓
-                  </div>
-                )}
-
-                <div className="howto-flow-step">
-
-                  <span
-                    className="howto-flow-icon"
-                    aria-hidden="true"
-                  >
-                    {step.icon}
-                  </span>
-
-                  <strong>
-                    {step.label}
-                  </strong>
-
+                <div
+                  className="howto-card-icon"
+                  aria-hidden="true"
+                >
+                  {step.icon}
                 </div>
 
-              </React.Fragment>
-            ))}
+                <h3>
+                  {step.title}
+                </h3>
 
-          </div>
+                <p>
+                  {step.description}
+                </p>
+
+                {step.system && (
+                  <span className="howto-agent-chip">
+                    {step.system}
+                  </span>
+                )}
+
+              </article>
+
+            </React.Fragment>
+          ))}
 
         </div>
+
+        {/* CLOSING NOTE */}
+
+        <p className="howto-flow-note">
+          The Route Agent, Pricing Agent and Margin Agent work at
+          exactly the steps shown above, so you always know what
+          happens behind the screens. Once the quotation is
+          accepted, the shipment follows the controlled status
+          flow — Booking Confirmed to Delivered — which you can
+          follow in My Shipments and on the Maritime Route Map.
+        </p>
 
       </section>
     );
@@ -5348,8 +6807,8 @@ function App() {
             <h1>My Shipments</h1>
             <p>
               Track the status of every quotation you
-              accepted. Accepting a quotation is the
-              step that creates a shipment.
+              accepted. After admin approval, each accepted
+              quotation becomes a shipment.
             </p>
           </div>
         </div>
@@ -5402,7 +6861,7 @@ function App() {
                     </span>
                   </div>
                   <span className="shipment-date">
-                    {formatAnalysisDate(shipment.created_at)}
+                    {formatDateTime(shipment.created_at)}
                   </span>
                 </div>
 
@@ -5619,7 +7078,7 @@ function App() {
                     Created
                   </span>
                   <span className="shipment-meta-value">
-                    {formatAnalysisDate(shipment.created_at)}
+                    {formatDateTime(shipment.created_at)}
                   </span>
                 </div>
                 <div className="shipment-details-item">
@@ -6252,6 +7711,42 @@ function App() {
 
           </div>
 
+          <div
+            className="info-card admin-action-card"
+            onClick={() =>
+              handleNavClick("Maritime Route Map")
+            }
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" ||
+                e.key === " "
+              ) {
+                handleNavClick("Maritime Route Map");
+              }
+            }}
+          >
+
+            <div className="info-card-icon">
+              🗺️
+            </div>
+
+            <div>
+
+              <h3>
+                Maritime Route Map
+              </h3>
+
+              <p>
+                Explore the full fixed maritime
+                network of ports and connections.
+              </p>
+
+            </div>
+
+          </div>
+
         </div>
 
       </section>
@@ -6688,8 +8183,8 @@ function App() {
             </h1>
 
             <p>
-              Pricing and margin quotations generated
-              across the platform.
+              Approve or reject accepted quotations. Shipments
+              are created only after a quotation is approved.
             </p>
 
           </div>
@@ -6701,6 +8196,20 @@ function App() {
         {adminQuotationsError && (
           <div className="error-message">
             {adminQuotationsError}
+          </div>
+        )}
+
+        {/* ACTION MESSAGE / ERROR */}
+
+        {adminQuotationActionMessage && (
+          <div className="success-message">
+            {adminQuotationActionMessage}
+          </div>
+        )}
+
+        {adminQuotationActionError && (
+          <div className="error-message">
+            {adminQuotationActionError}
           </div>
         )}
 
@@ -6752,6 +8261,7 @@ function App() {
                     <tr>
 
                       <th>User</th>
+                      <th>Quotation ID</th>
                       <th>Origin</th>
                       <th>Destination</th>
                       <th>Cargo</th>
@@ -6763,7 +8273,9 @@ function App() {
                       <th>Selling Price</th>
                       <th>Profit</th>
                       <th>Margin</th>
-                      <th>Date</th>
+                      <th>Accepted / Date</th>
+                      <th>Status</th>
+                      <th>Actions</th>
 
                     </tr>
 
@@ -6780,6 +8292,12 @@ function App() {
                         <td>
                           {item.user_contact ||
                             "Unknown user"}
+                        </td>
+
+                        <td>
+                          <span className="history-route-id">
+                            {item.record_id || "-"}
+                          </span>
                         </td>
 
                         <td>
@@ -6855,11 +8373,63 @@ function App() {
                         <td>
 
                           <span className="history-date">
-                            {formatAdminDate(
-                              item.created_at
+                            {formatDateTime(
+                              item.accepted_at ||
+                                item.created_at
                             )}
                           </span>
 
+                        </td>
+
+                        <td>
+                          <ApprovalStatusBadge item={item} />
+                        </td>
+
+                        <td>
+                          <div className="approval-actions">
+                            {item.approval_status ===
+                            "pending_admin_approval" ? (
+                              <>
+                                <button
+                                  className="approval-approve-btn"
+                                  type="button"
+                                  disabled={
+                                    adminQuotationActionId ===
+                                    item.record_id
+                                  }
+                                  onClick={() =>
+                                    handleApproveQuotation(
+                                      item
+                                    )
+                                  }
+                                >
+                                  {adminQuotationActionId ===
+                                  item.record_id
+                                    ? "Approving..."
+                                    : "Approve"}
+                                </button>
+                                <button
+                                  className="approval-reject-btn"
+                                  type="button"
+                                  disabled={
+                                    adminQuotationActionId ===
+                                    item.record_id
+                                  }
+                                  onClick={() =>
+                                    openRejectQuotationModal(
+                                      item
+                                    )
+                                  }
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            ) : (
+                              <span className="approval-no-action">
+                                —
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                       </tr>
@@ -6874,11 +8444,105 @@ function App() {
             </div>
           )}
 
+        {/* REJECT QUOTATION MODAL */}
+
+        {rejectQuotation && (
+          <div
+            className="reject-modal-overlay"
+            onClick={closeRejectQuotationModal}
+          >
+            <div
+              className="reject-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="reject-modal-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="reject-modal-header">
+                <span className="section-label">REVIEW QUOTATION</span>
+                <h2 id="reject-modal-title">
+                  Reject Quotation
+                </h2>
+                <p>
+                  The customer will see this quotation as
+                  "Rejected by Admin" with your reason.
+                  No shipment will be created.
+                </p>
+              </div>
+
+              <div className="reject-modal-summary">
+                <span>
+                  {rejectQuotation.origin || "-"} →{" "}
+                  {rejectQuotation.destination || "-"}
+                </span>
+                <span>
+                  {rejectQuotation.cargo_type || "-"}
+                  {rejectQuotation.cargo_subtype
+                    ? ` / ${rejectQuotation.cargo_subtype}`
+                    : ""}
+                  {rejectQuotation.containers
+                    ? ` · ${rejectQuotation.containers} containers`
+                    : ""}
+                </span>
+              </div>
+
+              <label
+                className="reject-modal-label"
+                htmlFor="reject-reason-input"
+              >
+                Rejection reason
+              </label>
+
+              <textarea
+                id="reject-reason-input"
+                className="reject-modal-textarea"
+                value={rejectReason}
+                onChange={(e) => {
+                  setRejectReason(e.target.value);
+                  setRejectError("");
+                }}
+                placeholder="Please provide a reason for rejecting this quotation."
+                rows="4"
+              />
+
+              {rejectError && (
+                <div className="error-message reject-modal-error">
+                  {rejectError}
+                </div>
+              )}
+
+              <div className="reject-modal-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={rejectingQuotation}
+                  onClick={closeRejectQuotationModal}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="approval-reject-btn reject-modal-submit"
+                  type="button"
+                  disabled={
+                    rejectingQuotation ||
+                    !rejectReason.trim()
+                  }
+                  onClick={handleRejectQuotation}
+                >
+                  {rejectingQuotation
+                    ? "Rejecting..."
+                    : "Confirm Reject"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </section>
     );
   };
 
-// ==========================================
+  // ==========================================
   // ADMIN SHIPMENTS
   // ==========================================
 
@@ -7125,7 +8789,7 @@ function App() {
 
                         <td>
                           <span className="history-date">
-                            {formatAdminDate(
+                            {formatDateTime(
                               item.created_at
                             )}
                           </span>
@@ -8058,6 +9722,8 @@ function App() {
       </section>
     );
   };
+
+  // ==========================================
   // MAIN LAYOUT
   // ==========================================
 
@@ -8115,6 +9781,26 @@ function App() {
                 </span>
 
                 Admin Dashboard
+
+              </button>
+
+              <button
+                className={
+                  activeNav === "Maritime Route Map"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Maritime Route Map")
+                }
+              >
+
+                <span className="nav-icon">
+                  🗺️
+                </span>
+
+                Maritime Route Map
 
               </button>
 
@@ -8321,6 +10007,26 @@ function App() {
                 </span>
 
                 Route History
+
+              </button>
+
+              <button
+                className={
+                  activeNav === "Maritime Route Map"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Maritime Route Map")
+                }
+              >
+
+                <span className="nav-icon">
+                  🗺️
+                </span>
+
+                Maritime Route Map
 
               </button>
 
@@ -8589,6 +10295,9 @@ function App() {
 
           {view === "results" &&
             renderResults()}
+
+          {view === "result-map" &&
+            renderResultMap()}
 
           {view === "history" &&
             renderHistory()}

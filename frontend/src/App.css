@@ -4811,19 +4811,22 @@ body {
   line-height: 1.6;
 }
 
-.howto-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 18px;
-  margin-bottom: 26px;
+.howto-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 14px;
+  padding: 4px 0 10px;
 }
 
 .howto-card {
   position: relative;
+  flex: 1 1 215px;
+  max-width: 260px;
   background: white;
   border: 1px solid #dfe7ee;
   border-radius: 15px;
-  padding: 28px 26px 28px 26px;
+  padding: 24px 22px 22px;
   box-shadow: 0 8px 30px rgba(19, 48, 75, 0.04);
   display: flex;
   flex-direction: column;
@@ -4838,38 +4841,39 @@ body {
 }
 
 .howto-card-icon {
-  width: 54px;
-  height: 54px;
-  border-radius: 13px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   background: #eaf5ff;
   color: #167fc9;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 21px;
   font-weight: 800;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .howto-card h3 {
   margin: 0 0 8px;
   color: #20364e;
-  font-size: 17px;
+  font-size: 16px;
 }
 
 .howto-card p {
-  margin: 0;
+  margin: 0 0 12px;
   color: #6b7f92;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.65;
+  flex: 1;
 }
 
 .howto-step-number {
   position: absolute;
-  top: 18px;
-  right: 20px;
-  width: 32px;
-  height: 32px;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: linear-gradient(135deg, #1f83e0 0%, #1167c3 100%);
   color: white;
@@ -4881,81 +4885,40 @@ body {
   box-shadow: 0 5px 14px rgba(31, 131, 224, 0.3);
 }
 
-.howto-workflow {
-  background: white;
-  border: 1px solid #dfe7ee;
-  border-radius: 15px;
-  box-shadow: 0 8px 30px rgba(19, 48, 75, 0.04);
-  overflow: hidden;
-}
-
-.howto-workflow-heading {
-  padding: 22px 26px;
-  border-bottom: 1px solid #e7edf2;
-  background: #fafcfe;
-}
-
-.howto-workflow-heading h2 {
-  margin: 5px 0 0;
-  color: #20364e;
-  font-size: 21px;
-}
-
-.howto-flow {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-  padding: 28px 26px 32px;
-}
-
-.howto-flow-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 26px;
-  border: 1px solid #dbe7f0;
-  border-radius: 12px;
-  background: #fbfdff;
-  min-width: 190px;
-  max-width: 240px;
-  text-align: center;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.howto-flow-step:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(22, 127, 201, 0.1);
-}
-
-.howto-flow-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: #eaf5ff;
-  color: #167fc9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
+.howto-agent-chip {
+  align-self: flex-start;
+  font-size: 10px;
   font-weight: 800;
-}
-
-.howto-flow-step strong {
-  color: #20364e;
-  font-size: 13px;
-  font-weight: 700;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: #0f766e;
+  background: #e9f7f4;
+  border: 1px solid rgba(15, 118, 110, 0.25);
+  border-radius: 999px;
+  padding: 4px 11px;
+  white-space: nowrap;
 }
 
 .howto-flow-arrow {
-  padding: 6px 0;
+  align-self: center;
   color: #2b91df;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   line-height: 1;
+  flex-shrink: 0;
+}
+
+.howto-flow-note {
+  max-width: 900px;
+  margin: 22px auto 0;
+  color: #64788f;
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 14px 18px;
+  border: 1px solid #dfe7ee;
+  border-left: 4px solid #167fc9;
+  border-radius: 12px;
+  background: #fafcfe;
 }
 
 /* =========================================================
@@ -4963,8 +4926,21 @@ body {
 ========================================================= */
 
 @media (max-width: 900px) {
-  .howto-grid {
-    grid-template-columns: 1fr;
+  .howto-flow {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 4px 0 10px;
+  }
+
+  .howto-flow-arrow {
+    align-self: center;
+    transform: rotate(90deg);
+  }
+
+  .howto-card {
+    flex: 1 1 auto;
+    max-width: none;
+    width: 100%;
   }
 
   .route-summary-grid {
@@ -4979,11 +4955,6 @@ body {
 
   .howto-header h1 {
     font-size: 28px;
-  }
-
-  .howto-flow-step {
-    min-width: 160px;
-    padding: 14px 18px;
   }
 }
 
@@ -5022,8 +4993,8 @@ body {
   .quotation-loading,
   .quotation-section,
   .quotation-cta-arrow,
-  .howto-card,
-  .howto-flow-step {
+.howto-card,
+  .howto-flow-arrow {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
@@ -8176,5 +8147,2980 @@ body {
   .nav-item::before,
   .nav-item .nav-icon {
     transform: none !important;
+  }
+}
+
+/* =========================================================
+   MARITIME ROUTE MAP
+   Separate page for users and admins. Visualizes every
+   available maritime route using the real port coordinates
+   from routes.csv. The Route Agent decides the recommendation.
+========================================================= */
+
+.route-map-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 30px 34px 46px;
+}
+
+.route-map-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.route-map-header h1 {
+  margin: 6px 0 6px;
+  font-size: 26px;
+  letter-spacing: -0.4px;
+  color: #17283d;
+}
+
+.route-map-header p {
+  margin: 0;
+  color: #5f7186;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.route-map-admin-pill {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  margin-top: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #eaf4ff;
+  color: #1f6fb0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---------- SELECTION FORM ---------- */
+
+.route-map-form-card {
+  background: white;
+  border: 1px solid #dfe7ee;
+  border-radius: 16px;
+  box-shadow: 0 10px 35px rgba(19, 48, 75, 0.05);
+  padding: 24px 26px;
+  margin-bottom: 26px;
+}
+
+.route-map-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.route-map-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.route-map-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #3b4c5f;
+}
+
+.route-map-field select,
+.route-map-field input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid #dfe7ee;
+  border-radius: 10px;
+  background: #f7fafc;
+  color: #17283d;
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.route-map-field select:focus,
+.route-map-field input:focus {
+  border-color: #35a4ff;
+  box-shadow: 0 0 0 3px rgba(53, 164, 255, 0.14);
+  background: white;
+}
+
+.route-map-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.route-map-submit {
+  border: none;
+  border-radius: 10px;
+  padding: 12px 24px;
+  background: #1f83e0;
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(31, 131, 224, 0.24);
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.route-map-submit:hover:not(:disabled) {
+  background: #1575cd;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(31, 131, 224, 0.3);
+}
+
+.route-map-error {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fdecea;
+  border: 1px solid #f3cfc9;
+  color: #b93a2e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.route-map-loading {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #2383c4;
+  font-size: 13px;
+}
+
+.route-map-loading .ai-agent-core {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #1f83e0;
+  box-shadow: 0 0 0 4px rgba(31, 131, 224, 0.14);
+  animation: rmPulse 1.4s ease-in-out infinite;
+}
+
+.route-map-loading-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.route-map-loading-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #1f83e0;
+  animation: rmDot 1.1s ease-in-out infinite;
+}
+
+.route-map-loading-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.route-map-loading-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes rmDot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes rmPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 4px rgba(31, 131, 224, 0.14);
+  }
+  50% {
+    transform: scale(1.25);
+    box-shadow: 0 0 0 8px rgba(31, 131, 224, 0.06);
+  }
+}
+
+/* ---------- MAP + DETAIL LAYOUT ---------- */
+
+.route-map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  gap: 22px;
+  align-items: start;
+  margin-bottom: 30px;
+}
+
+.route-map-stage {
+  background: white;
+  border: 1px solid #dfe7ee;
+  border-radius: 16px;
+  box-shadow: 0 10px 35px rgba(19, 48, 75, 0.05);
+  padding: 18px;
+}
+
+.route-map-stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.route-map-stage-head > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.route-map-stage-head > div strong {
+  color: #17283d;
+  font-weight: 800;
+}
+
+.route-map-stage-head > div span {
+  color: #8499ad;
+}
+
+.route-map-count {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #eaf4ff;
+  color: #1f6fb0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.route-map-frame {
+  position: relative;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.route-map-zoom-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 5;
+}
+
+.route-map-zoom-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #d7e2ec;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f6fb0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(19, 48, 75, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease, color 0.15s ease;
+}
+
+.route-map-zoom-button:hover:not(:disabled) {
+  background: #eaf4ff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(19, 48, 75, 0.14);
+}
+
+.route-map-zoom-button:disabled {
+  color: #b6c4d2;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.route-map-zoom-fit {
+  font-size: 13px;
+}
+
+.route-map-partial-note {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7e6;
+  border: 1px solid #f3deae;
+  color: #8a6d1f;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.route-map-network-note {
+  margin-bottom: 12px;
+  background: rgba(87, 130, 217, 0.12);
+  border: 1px solid rgba(87, 130, 217, 0.35);
+  color: #7aa2e3;
+}
+
+.route-map-error {
+  padding: 22px 18px;
+  border-radius: 12px;
+  background: #fff1f1;
+  border: 1px solid #ffd3d0;
+  color: #b42318;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.route-map-error strong {
+  color: #8f1d13;
+}
+
+.route-map-error .secondary-button {
+  margin-top: 6px;
+}
+
+.route-map-selected-note {
+  background: #eaf4ff;
+  border-color: #c3e0fc;
+  color: #1f6fb0;
+}
+
+.route-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.route-map-route {
+  cursor: pointer;
+  transition: stroke-opacity 0.2s ease, stroke-width 0.2s ease;
+}
+
+.route-map-recommended-line {
+  stroke-dasharray: 1 12;
+  animation: rmDash 2.4s linear infinite;
+}
+
+@keyframes rmDash {
+  to {
+    stroke-dashoffset: -156;
+  }
+}
+
+.route-map-ship {
+  animation: rmShipPulse 2s ease-in-out infinite;
+}
+
+.route-map-ship-halo {
+  animation: rmShipPulse 2s ease-in-out infinite;
+}
+
+@keyframes rmShipPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.route-map-stage-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  color: #5f7186;
+  font-size: 12px;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+
+.route-map-ocean {
+  margin: 0 auto;
+  color: #2383c4;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+}
+
+/* ---------- SELECTED ROUTE DETAIL ---------- */
+
+.route-map-detail-card {
+  background: white;
+  border: 1px solid #dfe7ee;
+  border-radius: 16px;
+  box-shadow: 0 10px 35px rgba(19, 48, 75, 0.05);
+  padding: 20px 22px;
+  position: sticky;
+  top: 100px;
+}
+
+.route-map-detail-card .section-label {
+  margin-bottom: 10px;
+  display: block;
+}
+
+.route-map-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.route-map-id {
+  color: #1f6fb0;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+}
+
+.route-map-badge {
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffd166, #ffc53d);
+  color: #0a2c4d;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(255, 197, 61, 0.35);
+}
+
+.route-map-detail-name {
+  color: #5f7186;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.route-map-detail-route {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f4f7fa;
+  color: #17283d;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.route-map-detail-arrow {
+  color: #1f83e0;
+  font-weight: 800;
+}
+
+.route-map-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.route-map-metric {
+  background: #f4f7fa;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.route-map-metric span {
+  display: block;
+  color: #8499ad;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.route-map-metric strong {
+  color: #17283d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.route-map-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.route-map-tag {
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: #eaf4ff;
+  color: #1f6fb0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.route-map-reasons {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fdf6e3;
+  border-left: 3px solid #e6b84e;
+}
+
+.route-map-reasons strong {
+  display: block;
+  color: #5a4a17;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.route-map-reasons ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.route-map-reasons li {
+  color: #6b5b2a;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.route-map-detail-empty {
+  color: #8ba0b4;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.route-map-empty {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 30px;
+  text-align: center;
+  background: #f3f7fb;
+  border: 1px dashed #c7d6e4;
+  border-radius: 14px;
+  color: #5f7186;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.route-map-empty strong {
+  font-size: 15px;
+  color: #24384e;
+}
+
+.route-map-secure-note {
+  margin: 16px 0 0;
+  color: #8499ad;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---------- ALL AVAILABLE ROUTES ---------- */
+
+.route-map-results {
+  margin-top: 6px;
+}
+
+.route-map-results-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.route-map-results-head h2 {
+  margin: 5px 0 0;
+  font-size: 20px;
+  letter-spacing: -0.3px;
+  color: #17283d;
+}
+
+.route-map-cargo-chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #eaf4ff;
+  color: #1f6fb0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.route-map-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.route-map-card {
+  position: relative;
+  text-align: left;
+  background: white;
+  border: 1px solid #dfe7ee;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 6px 22px rgba(19, 48, 75, 0.04);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+  overflow: hidden;
+}
+
+.route-map-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: transparent;
+}
+
+.route-map-card:hover {
+  transform: translateY(-3px);
+  border-color: #bfd9ec;
+  box-shadow: 0 14px 30px rgba(19, 48, 75, 0.1);
+}
+
+.route-map-card.recommended {
+  border-color: #e6b84e;
+  background: linear-gradient(180deg, #fffdf4, #ffffff);
+  box-shadow: 0 12px 30px rgba(230, 184, 78, 0.16);
+}
+
+.route-map-card.recommended::before {
+  background: linear-gradient(90deg, #ffd166, #ffc53d);
+}
+
+.route-map-card.selected {
+  border-color: #35a4ff;
+  box-shadow: 0 0 0 3px rgba(53, 164, 255, 0.14);
+}
+
+.route-map-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.route-map-rank {
+  color: #93a5b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.route-map-card .route-map-badge {
+  margin-left: auto;
+}
+
+.route-map-card-route {
+  color: #3b4c5f;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 10px 0 12px;
+}
+
+.route-map-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+/* =========================================================
+   GO TO MAPS CTA (results view)
+========================================================= */
+
+.go-to-maps-section {
+  margin-top: 22px;
+}
+
+.go-to-maps-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 28px;
+  background: linear-gradient(135deg, #0c4a3d 0%, #14695a 55%, #1a7d6b 100%);
+  border: 2px solid transparent;
+  border-radius: 14px;
+  color: white;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.go-to-maps-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 40px rgba(20, 105, 90, 0.32);
+  border-color: rgba(95, 220, 190, 0.4);
+}
+
+.go-to-maps-button:active {
+  transform: translateY(0);
+}
+
+.go-to-maps-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.go-to-maps-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.go-to-maps-text strong {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.go-to-maps-text span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.go-to-maps-arrow {
+  font-size: 22px;
+  font-weight: 700;
+  opacity: 0.65;
+  transition: opacity 0.2s ease;
+}
+
+.go-to-maps-button:hover .go-to-maps-arrow {
+  opacity: 1;
+}
+
+/* =========================================================
+   RESULT MAP PAGE (after analysis)
+========================================================= */
+
+.result-map-page {
+  max-width: 1120px;
+}
+
+.result-map-header {
+  margin-bottom: 24px;
+}
+
+.result-map-header .back-button {
+  display: block;
+  margin-bottom: 18px;
+}
+
+.result-map-header .section-label {
+  display: block;
+}
+
+.result-map-header h1 {
+  margin: 9px 0 8px;
+  font-size: 28px;
+  letter-spacing: -0.6px;
+  color: #172b42;
+}
+
+.result-map-header p {
+  margin: 0;
+  color: #697c90;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.result-map-summary {
+  background: #122b43;
+  color: white;
+  padding: 20px 26px;
+  border-radius: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 22px;
+  box-shadow: 0 12px 28px rgba(10, 31, 50, 0.13);
+}
+
+.result-map-summary .summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-map-summary .summary-item span {
+  color: #8da5bb;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+}
+
+.result-map-summary .summary-item strong {
+  font-size: 14px;
+  color: white;
+}
+
+.result-map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  gap: 22px;
+  align-items: start;
+  margin-bottom: 22px;
+}
+
+.result-map-detail-card {
+  position: sticky;
+  top: 20px;
+}
+
+.result-map-back {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* ---------- RESPONSIVE ---------- */
+
+@media (max-width: 1180px) {
+  .route-map-form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .route-map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .route-map-detail-card {
+    position: static;
+  }
+
+  .result-map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .result-map-detail-card {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .route-map-page {
+    padding: 22px 16px 34px;
+  }
+
+  .route-map-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .route-map-stage-head > div {
+    font-size: 13px;
+  }
+
+  .result-map-page {
+    padding: 22px 16px 34px;
+  }
+
+  .result-map-header h1 {
+    font-size: 22px;
+  }
+}
+
+/* =========================================================
+   MARITIME ROUTE MAP (IN-APP / SIDEBAR LAYOUT)
+   The map page lives INSIDE the normal app shell so the
+   sidebar and topbar stay visible. Vertical layout:
+   header -> controls bar -> LARGE map -> route info panel.
+   It shows the COMPLETE fixed network from routes.csv and,
+   after an analysis, the searched/recommended routes on top.
+========================================================= */
+
+.maritime-map-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  background: #ffffff;
+  border: 1px solid #dfe6ee;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 18px 48px rgba(30, 55, 85, 0.08);
+}
+
+/* ---------- PAGE HEADER ---------- */
+
+.maritime-map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  background: linear-gradient(180deg, #ffffff, #f6f9fc);
+  border-bottom: 1px solid #e4eaf0;
+  flex-shrink: 0;
+}
+
+.maritime-map-back {
+  border: 1px solid #d7e0e9;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #33506d;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.maritime-map-back:hover {
+  background: #eef6fd;
+  border-color: #a9cbe9;
+  color: #0b3d68;
+}
+
+.maritime-map-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+
+.maritime-map-title-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2.4px;
+  color: #0e7490;
+}
+
+.maritime-map-title strong {
+  font-size: 16px;
+  color: #1e3348;
+  letter-spacing: -0.3px;
+}
+
+.maritime-map-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 18px;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64788f;
+}
+
+.maritime-map-stats b {
+  color: #0b5a8a;
+  font-weight: 800;
+}
+
+/* ---------- CONTROLS BAR ---------- */
+
+.maritime-map-controls {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 18px;
+  background: #f4f8fc;
+  border-bottom: 1px solid #e0e7ee;
+  flex-shrink: 0;
+}
+
+.maritime-map-control {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.maritime-map-control label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #5b7087;
+}
+
+.maritime-map-control select,
+.maritime-map-control input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #cdd9e4;
+  border-radius: 9px;
+  background: #ffffff;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f3a55;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  text-overflow: ellipsis;
+}
+
+.maritime-map-control select:focus,
+.maritime-map-control input:focus {
+  border-color: #2b8ec9;
+  box-shadow: 0 0 0 3px rgba(43, 142, 201, 0.18);
+}
+
+.maritime-map-control select:disabled {
+  background: #eef2f6;
+  color: #8aa0b5;
+  cursor: not-allowed;
+}
+
+.maritime-map-analyze {
+  align-self: flex-end;
+  height: 40px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #0f7db6, #0a8a8a);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.15s ease, filter 0.2s ease;
+}
+
+.maritime-map-analyze:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.maritime-map-analyze:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.maritime-map-control-note {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b3541e;
+  margin-top: 2px;
+}
+
+/* ---------- HEADER ACTION (EXPAND MAP) ---------- */
+
+.maritime-map-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.maritime-map-expand {
+  border: 1px solid #cddce9;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #2c5577;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 8px 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.maritime-map-expand:hover {
+  background: #eef6fd;
+  border-color: #a9cbe9;
+  color: #0b3d68;
+}
+
+/* ---------- SHIPMENT CONTEXT BAR ---------- */
+
+.maritime-shipment-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 18px;
+  background: #ffffff;
+  border-bottom: 1px solid #e0e7ee;
+  flex-shrink: 0;
+}
+
+.maritime-shipment-bar-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #5b7087;
+}
+
+.maritime-shipment-select {
+  flex: 1 1 280px;
+  max-width: 460px;
+  height: 38px;
+  border: 1px solid #cdd9e4;
+  border-radius: 9px;
+  background: #ffffff;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f3a55;
+  outline: none;
+  text-overflow: ellipsis;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.maritime-shipment-select:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16);
+}
+
+.maritime-shipment-select:disabled {
+  background: #eef2f6;
+  color: #8aa0b5;
+  cursor: not-allowed;
+}
+
+.maritime-shipment-bar-note {
+  font-size: 12px;
+  font-weight: 600;
+  color: #a3562a;
+}
+
+.maritime-shipment-status {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  border-radius: 999px;
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+
+.maritime-shipment-status.confirmed {
+  color: #254d8f;
+  background: rgba(30, 86, 190, 0.12);
+  border: 1px solid rgba(30, 86, 190, 0.35);
+}
+
+.maritime-shipment-status.ready {
+  color: #a3562a;
+  background: rgba(192, 86, 33, 0.12);
+  border: 1px solid rgba(192, 86, 33, 0.35);
+}
+
+.maritime-shipment-status.origin {
+  color: #0b6bcb;
+  background: rgba(11, 107, 203, 0.12);
+  border: 1px solid rgba(11, 107, 203, 0.35);
+}
+
+.maritime-shipment-status.departed,
+.maritime-shipment-status.transit {
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.12);
+  border: 1px solid rgba(15, 118, 110, 0.35);
+}
+
+.maritime-shipment-status.destination {
+  color: #1f6aa7;
+  background: rgba(31, 106, 167, 0.12);
+  border: 1px solid rgba(31, 106, 167, 0.35);
+}
+
+.maritime-shipment-status.delivered {
+  color: #0c6e4a;
+  background: rgba(13, 138, 94, 0.14);
+  border: 1px solid rgba(13, 138, 94, 0.4);
+}
+
+/* ---------- MAP STAGE ---------- */
+
+.maritime-map-stage {
+  position: relative;
+  flex: 0 0 auto;
+  height: 600px;
+  min-height: 300px;
+  width: 100%;
+  background: #ddeaf5;
+}
+
+.route-map-leaflet {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.maritime-leaflet-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #ddeaf5;
+}
+
+.maritime-map-stage.map-expanded {
+  height: calc(100dvh - 352px);
+  min-height: 480px;
+}
+
+/* ---------- ROUTE INFORMATION PANEL (below the map) ---------- */
+
+.maritime-route-panel {
+  flex-shrink: 0;
+  max-height: none;
+  overflow: visible;
+  padding: 12px 18px 16px;
+  background: #ffffff;
+  border-top: 1px solid #e0e7ee;
+}
+
+.maritime-route-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.maritime-route-panel-title {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #35506b;
+}
+
+.maritime-route-panel-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: #788aa0;
+}
+
+/* ---------- ASSOCIATED SHIPMENT PANEL ---------- */
+
+.maritime-shipment-panel {
+  border: 1px solid #cfe6e2;
+  border-left: 4px solid #0f766e;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fbfefd, #f0f8f6);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.maritime-shipment-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.maritime-shipment-panel-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #0f766e;
+}
+
+.maritime-shipment-id {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  border-radius: 999px;
+  padding: 3px 12px;
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.1);
+  border: 1px solid rgba(15, 118, 110, 0.3);
+}
+
+.maritime-shipment-panel-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 26px;
+}
+
+.maritime-shipment-overview {
+  flex: 1 1 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.maritime-shipment-route {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.maritime-shipment-route strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: #15324a;
+}
+
+.maritime-shipment-route > span {
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.maritime-shipment-route-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4f6b82;
+}
+
+.maritime-shipment-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+}
+
+.maritime-shipment-metrics span {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #5a7087;
+}
+
+.maritime-shipment-metrics b {
+  font-weight: 800;
+  color: #123c33;
+}
+
+.maritime-shipment-note {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7a90a4;
+  margin: 0;
+  max-width: 560px;
+}
+
+/* ---------- SHIPMENT JOURNEY TIMELINE ---------- */
+
+.maritime-journey {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+
+.maritime-journey-title {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #5b7087;
+  margin-bottom: 8px;
+}
+
+.maritime-journey-steps {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 0;
+}
+
+.maritime-journey-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  position: relative;
+  padding: 5px 6px;
+}
+
+.maritime-journey-step::after {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: auto;
+  bottom: -4px;
+  width: calc(100% - 0px);
+  right: auto;
+}
+
+.maritime-journey-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.maritime-journey-step.reached .maritime-journey-dot {
+  background: #0f766e;
+  border: 3px solid rgba(15, 118, 110, 0.25);
+}
+
+.maritime-journey-step.pending .maritime-journey-dot {
+  background: #ffffff;
+  border: 2px solid #b8c7d4;
+}
+
+.maritime-journey-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8aa0b5;
+}
+
+.maritime-journey-step.reached .maritime-journey-label {
+  color: #1d5a52;
+  font-weight: 700;
+}
+
+.maritime-journey-step.current .maritime-journey-label {
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.maritime-journey-current {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: #0f766e;
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+/* ---------- ACTIVE ROUTE SUMMARY ---------- */
+
+.maritime-route-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 22px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border: 1px solid #d5e2ed;
+  border-left: 4px solid #0d8a5e;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #f4f9f7);
+}
+
+.maritime-route-summary-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.maritime-route-summary-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #4a6077;
+}
+
+.maritime-summary-status {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.maritime-summary-status.recommended {
+  color: #0c6e4a;
+  background: rgba(13, 138, 94, 0.12);
+  border: 1px solid rgba(13, 138, 94, 0.35);
+}
+
+.maritime-summary-status.available {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+}
+
+.maritime-summary-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+
+.maritime-summary-main strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: #15293d;
+  letter-spacing: -0.2px;
+}
+
+.maritime-summary-main span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5a7290;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.maritime-summary-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+}
+
+.maritime-summary-metrics > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.maritime-summary-metrics span {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: #8aa0b5;
+}
+
+.maritime-summary-metrics b {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #1e3348;
+}
+
+.maritime-route-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.maritime-route-card {
+  border: 1px solid #dce5ed;
+  border-radius: 12px;
+  background: #fbfdff;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease,
+    transform 0.15s ease;
+  position: relative;
+}
+
+.maritime-route-card:hover {
+  border-color: #9fc3e2;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(20, 60, 100, 0.08);
+}
+
+.maritime-route-card.selected {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+
+.maritime-route-card.recommended {
+  border-color: #efb64a;
+  background: linear-gradient(180deg, #fffdf6, #fdf6e7);
+  box-shadow: 0 0 0 3px rgba(239, 182, 74, 0.2);
+}
+
+.maritime-route-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.maritime-route-card-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.maritime-route-rank {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #67809b;
+}
+
+.maritime-route-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eaf2fb;
+  color: #2b6cb0;
+  text-transform: uppercase;
+}
+
+.maritime-route-badge.recommended {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #3a2600;
+}
+
+.maritime-route-card-route {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #17334f;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.maritime-route-card-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #51667d;
+}
+
+.maritime-route-card-metrics b {
+  color: #0e4f78;
+  font-weight: 800;
+}
+
+.maritime-route-card-status {
+  margin-left: auto;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #1a8a5c;
+}
+
+.maritime-route-card-status.recommended {
+  color: #1a8a5c;
+}
+
+.maritime-route-card-status.selected {
+  color: #2563eb;
+}
+
+.maritime-route-card-status.available {
+  color: #8a97a8;
+}
+
+.maritime-route-empty {
+  padding: 10px 0 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6a7f95;
+  line-height: 1.6;
+}
+
+/* ---------- PORT TOOLTIPS ---------- */
+
+.route-port-tooltip {
+  background: rgba(6, 24, 44, 0.92);
+  border: 1px solid rgba(92, 180, 255, 0.35);
+  border-radius: 6px !important;
+  color: #dff0ff;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  padding: 3px 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.route-port-tooltip::before {
+  display: none !important;
+}
+
+/* ---------- PORT POPUPS ---------- */
+
+.route-port-popup {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.route-port-popup .leaflet-popup-content-wrapper {
+  background: rgba(6, 24, 44, 0.96);
+  border: 1px solid rgba(92, 180, 255, 0.35);
+  border-radius: 10px;
+  color: #dff0ff;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+}
+
+.route-port-popup .leaflet-popup-content {
+  margin: 12px 14px;
+  font-family: "Inter", Arial, sans-serif;
+}
+
+.route-port-popup .leaflet-popup-tip {
+  background: rgba(6, 24, 44, 0.96);
+  border: 1px solid rgba(92, 180, 255, 0.35);
+}
+
+.port-popup-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #eaf3fb;
+  letter-spacing: -0.2px;
+}
+
+.port-popup-country {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7fc9ff;
+  margin-top: 2px;
+  margin-bottom: 8px;
+}
+
+.port-popup-type-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.port-popup-type {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: #ffd166;
+  background: rgba(255, 209, 102, 0.12);
+  border: 1px solid rgba(255, 209, 102, 0.35);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.port-popup-type.origin {
+  color: #6fd3ff;
+  background: rgba(111, 211, 255, 0.12);
+  border-color: rgba(111, 211, 255, 0.35);
+}
+
+.port-popup-type.destination {
+  color: #ffb1a8;
+  background: rgba(255, 177, 168, 0.12);
+  border-color: rgba(255, 177, 168, 0.35);
+}
+
+.port-popup-type.both {
+  color: #8ff0df;
+  background: rgba(143, 240, 223, 0.12);
+  border-color: rgba(143, 240, 223, 0.35);
+}
+
+.port-popup-routes-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #61c2ff;
+  text-transform: uppercase;
+  margin: 8px 0 6px;
+}
+
+.port-popup-routes {
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.port-popup-route {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 5px 0;
+  border-top: 1px solid rgba(92, 180, 255, 0.14);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #cfe3f7;
+  white-space: nowrap;
+}
+
+.port-popup-route-count {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffd166;
+  flex-shrink: 0;
+}
+
+.port-popup-more {
+  margin-top: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #7fc9ff;
+}
+
+/* ---------- LEGEND ---------- */
+
+.maritime-map-legend {
+  position: absolute;
+  left: 14px;
+  bottom: 34px;
+  z-index: 1001;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d7e2ec;
+  border-radius: 11px;
+  padding: 11px 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #44607c;
+  box-shadow: 0 10px 26px rgba(23, 51, 79, 0.18);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+.maritime-legend-title {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  color: #7b91a8;
+  margin-bottom: 8px;
+}
+
+.maritime-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 5px 0;
+  white-space: nowrap;
+}
+
+.legend-line {
+  width: 22px;
+  height: 3px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.legend-line-alt {
+  background: #9fb4c8;
+  background-image: linear-gradient(
+    to right,
+    #9fb4c8 55%,
+    transparent 55%
+  );
+  background-size: 8px 3px;
+  background-repeat: repeat-x;
+}
+
+.legend-line-recommended {
+  background: #0d8a5e;
+}
+
+.legend-line-shipment {
+  background: #0f766e;
+  height: 4px;
+}
+
+.legend-pin {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid #0b6bcb;
+  box-shadow: 0 0 0 1px rgba(11, 107, 203, 0.4);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.legend-pin::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #0b6bcb;
+}
+
+.legend-pin-destination {
+  border-color: #c05621;
+}
+
+.legend-pin-destination::after {
+  background: #c05621;
+}
+
+.legend-port {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #3f6d8c;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #3f6d8c;
+  flex-shrink: 0;
+}
+
+.maritime-map-note {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1001;
+  max-width: 320px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #dde6ee;
+  color: #64788f;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+/* ---------- HIGHLIGHT LINES ---------- */
+
+.route-flow-line {
+  filter:
+    drop-shadow(0 0 3px rgba(13, 138, 94, 0.65))
+    drop-shadow(0 0 10px rgba(13, 138, 94, 0.45))
+    drop-shadow(0 0 18px rgba(13, 138, 94, 0.25));
+}
+
+.route-selected-line {
+  filter:
+    drop-shadow(0 0 3px rgba(37, 99, 235, 0.7))
+    drop-shadow(0 0 9px rgba(37, 99, 235, 0.45));
+}
+
+.route-alt-line {
+  opacity: 0.5;
+}
+
+.route-shipment-line {
+  filter:
+    drop-shadow(0 0 3px rgba(15, 118, 110, 0.7))
+    drop-shadow(0 0 9px rgba(15, 118, 110, 0.45));
+}
+
+/* ---------- DIRECTION ARROWS ---------- */
+
+.route-arrow-icon {
+  pointer-events: none;
+}
+
+.route-arrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  margin-left: -7px;
+  margin-top: -7px;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 11px solid #9fb4c8;
+  opacity: 0.85;
+  transform-origin: 7px 7px;
+  transform: rotate(0deg);
+}
+
+.route-arrow-recommended {
+  border-top-color: #ffffff;
+  opacity: 1;
+  filter: drop-shadow(0 0 3px rgba(13, 138, 94, 0.9));
+}
+
+.route-arrow-selected {
+  border-top-color: #ffffff;
+  opacity: 1;
+  filter: drop-shadow(0 0 3px rgba(37, 99, 235, 0.9));
+}
+
+.route-arrow-shipment {
+  border-top-color: #ffffff;
+  opacity: 1;
+  filter: drop-shadow(0 0 3px rgba(15, 118, 110, 0.9));
+}
+
+.route-arrow-alt {
+  opacity: 0.6;
+  transform-origin: 7px 7px;
+}
+
+/* ---------- TRANSIT PORT MARKERS ---------- */
+
+.route-transit-icon {
+  pointer-events: none;
+}
+
+.route-transit-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(6, 24, 44, 0.9);
+  border: 1px solid rgba(45, 212, 191, 0.4);
+  border-radius: 999px;
+  padding: 3px 9px;
+  transform: translate(16px, -38px);
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+
+.route-transit-node.transit-active {
+  border-color: rgba(45, 212, 191, 0.7);
+  box-shadow: 0 3px 12px rgba(15, 118, 110, 0.5);
+}
+
+.route-transit-tag {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #2dd4bf;
+}
+
+.route-transit-name {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #dff7f1;
+  letter-spacing: 0.2px;
+}
+
+/* ---------- CORRIDOR LABELS (non-port waypoints, e.g. Suez Canal) ---------- */
+
+.route-corridor-icon {
+  pointer-events: none;
+}
+
+.route-corridor-node {
+  background: rgba(15, 45, 74, 0.88);
+  color: #9fd1ff;
+  border: 1px solid rgba(97, 194, 255, 0.35);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  transform: translate(12px, -14px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ---------- ROUTE / SHIPMENT BADGES ---------- */
+
+.recommended-badge-icon {
+  pointer-events: none;
+}
+
+.recommended-badge-node {
+  background: linear-gradient(135deg, #0d8a5e, #0aa36d);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgba(8, 84, 58, 0.4);
+  transform: translate(-50%, -50%);
+  margin-left: 0;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.shipment-route-badge-node {
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgba(10, 68, 62, 0.4);
+  transform: translate(-50%, -50%);
+  margin-left: 0;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+/* ---------- ORIGIN / DESTINATION ENDPOINT MARKERS ---------- */
+
+.route-endpoint-icon {
+  pointer-events: none;
+}
+
+.route-endpoint-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+}
+
+.route-endpoint-label {
+  order: 1;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(20, 54, 84, 0.35);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-endpoint-kind {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  line-height: 1.15;
+  opacity: 0.92;
+}
+
+.route-endpoint-name {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  line-height: 1.15;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.endpoint-origin .route-endpoint-label {
+  background: #0b6bcb;
+}
+
+.endpoint-destination .route-endpoint-label {
+  background: #c05621;
+}
+
+.route-endpoint-pin {
+  order: 2;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid #0b6bcb;
+  box-shadow: 0 2px 8px rgba(16, 42, 66, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.endpoint-destination .route-endpoint-pin {
+  border-color: #c05621;
+}
+
+.route-endpoint-core {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #0b6bcb;
+}
+
+.endpoint-destination .route-endpoint-core {
+  background: #c05621;
+}
+
+/* ---------- ROUTE HOVER TOOLTIP ---------- */
+
+.route-info-tooltip {
+  background: rgba(21, 41, 61, 0.94);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 8px 22px rgba(12, 28, 44, 0.35);
+}
+
+.route-info-tooltip::before {
+  border-top-color: #15293d;
+}
+
+.route-tip-route {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #7dd3a8;
+  margin-bottom: 3px;
+}
+
+.route-tip-path {
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: #eaf4ee;
+}
+
+.route-tip-metrics {
+  display: flex;
+  gap: 10px;
+  color: #bcd1c4;
+  font-size: 10.5px;
+}
+
+.route-tip-metrics b {
+  color: #ffffff;
+}
+
+.route-tip-metrics span {
+  display: inline-flex;
+  gap: 4px;
+}
+
+/* ---------- LOADING / EMPTY STATES ---------- */
+
+.maritime-map-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #3f5a74;
+  font-size: 14px;
+  font-weight: 600;
+  background: #eef4f9;
+  z-index: 2100;
+}
+
+.maritime-map-loading .ai-agent-core {
+  animation: spin 1s linear infinite;
+}
+
+.maritime-map-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 24px;
+  color: #3f5a74;
+  background: #eef4f9;
+  z-index: 2100;
+}
+
+.maritime-map-empty strong {
+  color: #1b3b57;
+  font-size: 17px;
+}
+
+.maritime-map-empty span {
+  font-size: 13px;
+  max-width: 420px;
+  line-height: 1.55;
+}
+
+/* ---------- RESPONSIVE ---------- */
+
+@media (max-width: 1120px) {
+  .maritime-map-controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .maritime-map-view {
+    height: auto;
+    min-height: calc(100dvh - 150px);
+    border-radius: 10px;
+  }
+
+  .maritime-map-header {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .maritime-map-back {
+    font-size: 12px;
+    padding: 8px 11px;
+  }
+
+  .maritime-map-title {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .maritime-map-title-label {
+    font-size: 10px;
+  }
+
+  .maritime-map-title strong {
+    font-size: 14px;
+  }
+
+  .maritime-map-stats {
+    justify-content: flex-start;
+  }
+
+  .maritime-map-controls {
+    grid-template-columns: 1fr 1fr;
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .maritime-map-analyze {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .maritime-map-stage {
+    height: 480px;
+    min-height: 420px;
+  }
+
+  .maritime-map-stage.map-expanded {
+    height: calc(100dvh - 330px);
+    min-height: 380px;
+  }
+
+  .maritime-map-actions {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .maritime-map-expand {
+    width: 100%;
+  }
+
+  .maritime-shipment-bar {
+    padding: 10px 12px;
+  }
+
+  .maritime-shipment-select {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .maritime-route-panel {
+    max-height: none;
+    padding: 12px;
+  }
+
+  .maritime-route-panel-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .maritime-route-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .maritime-map-legend {
+    left: 10px;
+    bottom: 30px;
+    padding: 10px 12px;
+  }
+
+  .maritime-map-note {
+    display: none;
+  }
+
+  .maritime-route-summary {
+    align-items: flex-start;
+    gap: 8px 14px;
+  }
+
+  .maritime-summary-main {
+    flex-basis: 100%;
+  }
+
+  .maritime-journey-steps {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px 0;
+  }
+
+  .maritime-journey-step::after {
+    top: -14px;
+    left: 14px;
+    width: 0;
+    height: 12px;
+    border-left: 2px solid #cfe6e2;
+  }
+}
+
+/* ==========================================
+   QUOTATION APPROVAL WORKFLOW
+   Admin approve/reject + customer status
+   ========================================== */
+
+.success-message {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  background: #e3f7e8;
+  color: #0b8a3e;
+  border: 1px solid #bdebd0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.approval-status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.approval-status-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 11px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background: #eef4f9;
+  color: #49617a;
+  white-space: nowrap;
+}
+
+.approval-status-pill.approval-status-pending {
+  background: #fff4e0;
+  color: #9a6a00;
+}
+
+.approval-status-pill.approval-status-approved {
+  background: #e3f7e8;
+  color: #0b8a3e;
+}
+
+.approval-status-pill.approval-status-rejected {
+  background: #fdecef;
+  color: #c0373f;
+}
+
+.approval-status-reason {
+  color: #c0373f;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  word-break: break-word;
+  max-width: 220px;
+}
+
+.approval-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.approval-approve-btn,
+.approval-reject-btn {
+  padding: 7px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease,
+    background 0.15s ease;
+}
+
+.approval-approve-btn {
+  background: #0f8a46;
+  color: #fff;
+}
+
+.approval-approve-btn:hover:not(:disabled) {
+  background: #0b7a3c;
+  transform: translateY(-1px);
+}
+
+.approval-reject-btn {
+  background: #fdecef;
+  color: #c0373f;
+  border: 1px solid #f2c4c9;
+}
+
+.approval-reject-btn:hover:not(:disabled) {
+  background: #f8d8dd;
+  transform: translateY(-1px);
+}
+
+.approval-approve-btn:disabled,
+.approval-reject-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.approval-no-action {
+  color: #a7b6c4;
+}
+
+.accept-success-icon-pending {
+  background: linear-gradient(135deg, #f0a500 0%, #c47f00 100%);
+  box-shadow: 0 8px 20px rgba(240, 165, 0, 0.3);
+}
+
+/* ==========================================
+   REJECT QUOTATION MODAL
+   ========================================== */
+
+.reject-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(10, 21, 38, 0.62);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.reject-modal {
+  width: 100%;
+  max-width: 480px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(3, 12, 24, 0.35);
+  padding: 26px;
+}
+
+.reject-modal-header .section-label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.reject-modal-header h2 {
+  margin: 0 0 8px;
+  color: #172b42;
+  font-size: 22px;
+}
+
+.reject-modal-header p {
+  margin: 0 0 16px;
+  color: #718497;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.reject-modal-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  background: #f6f9fc;
+  border: 1px solid #e8eef4;
+  border-radius: 10px;
+  color: #20364e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reject-modal-summary span + span {
+  color: #718497;
+  font-weight: 500;
+}
+
+.reject-modal-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #20364e;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.reject-modal-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #d3dde6;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  color: #172b42;
+  background: #fff;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.reject-modal-textarea:focus {
+  border-color: #167fc9;
+  box-shadow: 0 0 0 3px rgba(22, 127, 201, 0.15);
+}
+
+.reject-modal-textarea::placeholder {
+  color: #9aacbd;
+}
+
+.reject-modal-error {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+.reject-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.reject-modal-submit {
+  border: none;
+}
+
+/* =====================================================================
+   MARITIME ROUTE MAP - CLEAN IMPLEMENTATION EXTRAS
+   ---------------------------------------------------------------------
+   Styling added by the clean map rewrite:
+     * layer toggle controls
+     * live AIS vessel markers + popups + status banner
+     * legend AIS swatch
+     * route-detail popup rows (Route Number / Origin / Destination /
+       Transit Days / Distance / Transshipments / Status)
+   ===================================================================== */
+
+/* ---------- LAYER TOGGLE CONTROLS ---------- */
+
+.maritime-map-tools {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  min-width: 128px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #d7e2ec;
+  border-radius: 11px;
+  box-shadow: 0 10px 26px rgba(23, 51, 79, 0.16);
+  backdrop-filter: blur(4px);
+}
+
+.map-tools-title {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: #7b91a8;
+  margin-bottom: 2px;
+}
+
+.map-tool-toggle {
+  border: 1px solid #dce4ec;
+  background: #ffffff;
+  color: #5b7087;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  padding: 6px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background 0.15s ease,
+    color 0.15s ease, opacity 0.15s ease;
+}
+
+.map-tool-toggle:hover {
+  border-color: #a9cbe9;
+}
+
+.map-tool-toggle.active {
+  background: #eef6fd;
+  border-color: #7fb8e6;
+  color: #0b3d68;
+}
+
+.map-tool-toggle:not(.active) {
+  opacity: 0.62;
+}
+
+/* ---------- AIS VESSEL MARKERS ---------- */
+
+.ais-vessel-icon {
+  pointer-events: none;
+}
+
+.ais-vessel-popup .leaflet-popup-content-wrapper {
+  pointer-events: auto;
+}
+
+.ais-vessel-marker {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+}
+
+.ais-ship-head {
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  width: 0;
+  height: 0;
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid #dc2626;
+  border-radius: 1px;
+}
+
+.ais-ship-hull {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 18px;
+  height: 9px;
+  margin-left: -9px;
+  background: linear-gradient(180deg, #b91c1c, #7f1d1d);
+  border: 2px solid #ffffff;
+  border-radius: 4px 4px 6px 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------- AIS VESSEL POPUP ---------- */
+
+.ais-vessel-popup .leaflet-popup-content-wrapper {
+  background: rgba(18, 30, 44, 0.97);
+  border: 1px solid rgba(129, 140, 248, 0.45);
+  border-radius: 10px;
+  color: #e2e8f0;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.ais-vessel-popup .leaflet-popup-content {
+  margin: 12px 14px;
+  font-family: "Inter", Arial, sans-serif;
+}
+
+.ais-vessel-popup .leaflet-popup-tip {
+  background: rgba(18, 30, 44, 0.97);
+  border: 1px solid rgba(129, 140, 248, 0.45);
+}
+
+.ais-popup-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  padding-bottom: 8px;
+}
+
+.ais-popup-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #f1f5f9;
+  letter-spacing: -0.2px;
+}
+
+.ais-popup-source {
+  font-size: 10px;
+  font-weight: 600;
+  color: #93c5fd;
+}
+
+.ais-popup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+  min-width: 240px;
+}
+
+.ais-popup-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ais-popup-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.ais-popup-value {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #e2e8f0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- AIS STATUS BANNER ---------- */
+
+.maritime-ais-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 180px);
+  padding: 7px 12px;
+  border-radius: 9px;
+  font-size: 11.5px;
+  font-weight: 700;
+  box-shadow: 0 8px 22px rgba(23, 51, 79, 0.16);
+  backdrop-filter: blur(4px);
+}
+
+.maritime-ais-banner.ais-warn {
+  background: rgba(255, 248, 231, 0.96);
+  border: 1px solid #f5dc9a;
+  color: #7a5a12;
+}
+
+.maritime-ais-banner.ais-ok {
+  background: rgba(240, 253, 244, 0.96);
+  border: 1px solid #bce4cc;
+  color: #14532d;
+}
+
+.ais-banner-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ais-banner-refresh {
+  flex-shrink: 0;
+  border: 1px solid #bfd7ea;
+  background: #ffffff;
+  color: #1d4d72;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ais-banner-refresh:hover {
+  background: #eef6fd;
+  border-color: #9dc9ea;
+}
+
+/* ---------- LEGEND AIS SWATCH ---------- */
+
+.legend-vessel {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #b91c1c;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #b91c1c;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.legend-vessel::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  margin-left: -2px;
+  border-left: 2px solid transparent;
+  border-right: 2px solid transparent;
+  border-bottom: 4px solid #ffffff;
+}
+
+/* ---------- ROUTE DETAIL POPUP ---------- */
+
+.route-detail-popup {
+  min-width: 210px;
+}
+
+.route-detail-title {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #61c2ff;
+  margin-bottom: 6px;
+}
+
+.route-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 4px 0;
+  border-top: 1px solid rgba(92, 180, 255, 0.14);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.route-detail-label {
+  font-weight: 600;
+  color: #9fbdd8;
+}
+
+.route-detail-value {
+  font-weight: 800;
+  color: #eaf3fb;
+}
+
+/* ---------- RESPONSIVE (map extras) ---------- */
+
+@media (max-width: 640px) {
+  .maritime-map-tools {
+    top: 8px;
+    right: 8px;
+    min-width: 112px;
+  }
+
+  .maritime-ais-banner {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    max-width: none;
+    justify-content: space-between;
+  }
+
+  .maritime-ais-banner .ais-banner-refresh {
+    flex-shrink: 0;
   }
 }
