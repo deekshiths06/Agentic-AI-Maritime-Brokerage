@@ -511,23 +511,6 @@ function App() {
     useState("");
 
   // ==========================================
-  // ADMIN INVITATION STATE
-  // ==========================================
-
-  const [inviteContact, setInviteContact] = useState("");
-  const [inviteGenerating, setInviteGenerating] =
-    useState(false);
-  const [inviteResult, setInviteResult] = useState(null);
-  const [inviteError, setInviteError] = useState("");
-  const [adminInvitations, setAdminInvitations] =
-    useState([]);
-  const [adminInvitationsLoading, setAdminInvitationsLoading] =
-    useState(false);
-  const [adminInvitationsError, setAdminInvitationsError] =
-    useState("");
-  const [copiedInvite, setCopiedInvite] = useState(false);
-
-  // ==========================================
   // LOGIN CHECK
   // The saved user, initial view and active nav
   // are derived once at mount from localStorage
@@ -2371,149 +2354,7 @@ function App() {
       setAdminFeedbackLoading(false);
     }
   };
-
-  // ==========================================
-  // ADMIN INVITATIONS
-  // ==========================================
-
-  const loadAdminInvitations = async () => {
-    setAdminInvitationsLoading(true);
-    setAdminInvitationsError("");
-
-    try {
-      const response = await adminFetch(
-        "/api/admin/invitations"
-      );
-
-      const data = await response
-        .json()
-        .catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          data?.detail ||
-            "Unable to load invitations."
-        );
-      }
-
-      setAdminInvitations(data?.invitations || []);
-    } catch (err) {
-      console.error(
-        "Admin invitations loading error:",
-        err
-      );
-      setAdminInvitations([]);
-      setAdminInvitationsError(
-        err.message ||
-          "Unable to load invitations."
-      );
-    } finally {
-      setAdminInvitationsLoading(false);
-    }
-  };
-
-  const handleGenerateInvitation = async (e) => {
-    e.preventDefault();
-
-    setInviteError("");
-    setInviteResult(null);
-    setCopiedInvite(false);
-
-    if (!inviteContact.trim()) {
-      setInviteError(
-        "Please enter a contact email."
-      );
-      return;
-    }
-
-    setInviteGenerating(true);
-
-    try {
-      const response = await adminFetch(
-        "/api/admin/invitations",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            invited_contact: inviteContact.trim(),
-          }),
-        }
-      );
-
-      const data = await response
-        .json()
-        .catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          data?.detail ||
-            "Unable to generate invitation."
-        );
-      }
-
-      setInviteResult(data?.invitation || null);
-      setInviteContact("");
-      loadAdminInvitations();
-    } catch (err) {
-      console.error(
-        "Invitation generation error:",
-        err
-      );
-      setInviteError(
-        err.message ||
-          "Unable to generate invitation."
-      );
-    } finally {
-      setInviteGenerating(false);
-    }
-  };
-
-  const buildInviteLink = (token) => {
-    if (!token) return "";
-
-    const host = window.location.hostname;
-    const isLoopback =
-      host === "localhost" ||
-      host === "127.0.0.1" ||
-      host === "::1";
-
-    const origin =
-      isLoopback && inviteResult?.frontend_origin
-        ? inviteResult.frontend_origin
-        : window.location.origin;
-
-    return `${origin}/accept-invitation.html?token=${encodeURIComponent(
-      token
-    )}`;
-  };
-
-  const copyInviteLink = () => {
-    const token = inviteResult?.token;
-
-    if (!token) return;
-
-    const link = buildInviteLink(token);
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard
-        .writeText(link)
-        .then(() => {
-          setCopiedInvite(true);
-          setTimeout(() => setCopiedInvite(false), 2500);
-        })
-        .catch(() => {
-          prompt(
-            "Copy the invitation link:",
-            link
-          );
-        });
-    } else {
-      prompt("Copy the invitation link:", link);
-    }
-  };
-
+ 
   const formatFullDate = (value) => {
     if (!value) return "-";
 
@@ -2935,14 +2776,6 @@ function App() {
       return;
     }
 
-    if (item === "Admin Invitations") {
-      setActiveNav("Admin Invitations");
-      setView("admin-invitations");
-      setError("");
-      loadAdminInvitations();
-      return;
-    }
-
     if (item === "Maritime Route Map") {
       setView("result-map");
       setActiveNav("Maritime Route Map");
@@ -3075,6 +2908,39 @@ function App() {
             <p>
               Intelligent route planning for smarter maritime
               freight decisions.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/*
+          MARITIME HERO BANNER
+          Background image: "Port Jersey container ship sunset 2018",
+          Wikimedia Commons (CC BY 2.0), served locally from /maritime/.
+        */}
+
+        <div className="hero-banner hero-banner-user">
+
+          <img
+            src="/maritime/container-ship-sunset.jpg"
+            alt="Container ship sailing at sunset"
+          />
+
+          <div className="hero-banner-overlay">
+
+            <span className="hero-banner-label">
+              Global Maritime Network
+            </span>
+
+            <h2>
+              Connecting the world&apos;s trade routes
+            </h2>
+
+            <p>
+              Compare ocean routes, transit times and freight
+              options across the busiest shipping lanes with
+              AI-powered route intelligence.
             </p>
 
           </div>
@@ -4103,9 +3969,9 @@ function App() {
           </div>
         )}
 
-        {/* PRICING INTELLIGENCE */}
+        {/* PRICING INTELLIGENCE (ADMIN ONLY - internal cost breakdown) */}
 
-        {quotation && quotation.pricing && (
+        {isAdmin && quotation && quotation.pricing && (
           <div className="quotation-section result-animate result-animate-2">
             <div className="quotation-section-header">
               <div className="quotation-section-icon quotation-icon-pricing">
@@ -4113,17 +3979,13 @@ function App() {
               </div>
               <div>
                 <span className="section-label">
-                  {isAdmin
-                    ? "PRICING INTELLIGENCE"
-                    : "QUOTATION PRICING"}
+                  PRICING INTELLIGENCE
                 </span>
                 <h2>
-                  {isAdmin ? "Cost Breakdown" : "Your Freight Cost"}
+                  Cost Breakdown
                 </h2>
                 <p>
-                  {isAdmin
-                    ? "Calculated by the Pricing Agent based on route-specific pricing data"
-                    : "Transparent, customer-facing charges for this shipment"}
+                  Calculated by the Pricing Agent based on route-specific pricing data
                 </p>
               </div>
             </div>
@@ -4229,7 +4091,7 @@ function App() {
               </div>
               <div>
                 <span className="section-label">
-                  FINAL QUOTATION
+                  TOTAL QUOTATION
                 </span>
                 <h2>
                   Total Quotation Price
@@ -4370,7 +4232,7 @@ function App() {
                     <th>Route ID</th>
                     <th>Transit</th>
                     <th>Distance</th>
-                    <th>Base Freight</th>
+                    {isAdmin && <th>Base Freight</th>}
                     {isAdmin && <th>Operating Cost</th>}
                     {isAdmin && <th>Demand Adj. Cost</th>}
                   </tr>
@@ -4395,14 +4257,16 @@ function App() {
                             ? `${alt.distance_nm} nm`
                             : "-"}
                         </td>
-                        <td>
-                          {alt.base_freight_usd != null
-                            ? `$${alt.base_freight_usd.toLocaleString(
-                                undefined,
-                                { minimumFractionDigits: 2 }
-                              )}`
-                            : "-"}
-                        </td>
+                        {isAdmin && (
+                          <td>
+                            {alt.base_freight_usd != null
+                              ? `$${alt.base_freight_usd.toLocaleString(
+                                  undefined,
+                                  { minimumFractionDigits: 2 }
+                                )}`
+                              : "-"}
+                          </td>
+                        )}
                         {isAdmin && (
                           <td>
                             {alt.operating_cost_usd != null
@@ -5945,9 +5809,9 @@ function App() {
 
             </div>
 
-            {/* PRICING INTELLIGENCE */}
+            {/* PRICING INTELLIGENCE (ADMIN ONLY - internal cost breakdown) */}
 
-            {quotation.pricing && (
+            {isAdmin && quotation.pricing && (
               <div className="quotation-section result-animate result-animate-2">
 
                 <div className="quotation-section-header">
@@ -5959,19 +5823,15 @@ function App() {
                   <div>
 
                     <span className="section-label">
-                      {isAdmin
-                        ? "PRICING INTELLIGENCE"
-                        : "QUOTATION PRICING"}
+                      PRICING INTELLIGENCE
                     </span>
 
                     <h2>
-                      {isAdmin ? "Cost Breakdown" : "Your Freight Cost"}
+                      Cost Breakdown
                     </h2>
 
                     <p>
-                      {isAdmin
-                        ? "Calculated by the Pricing Agent based on route-specific pricing data"
-                        : "Transparent, customer-facing charges for this shipment"}
+                      Calculated by the Pricing Agent based on route-specific pricing data
                     </p>
 
                   </div>
@@ -6220,7 +6080,7 @@ function App() {
                   <div>
 
                     <span className="section-label">
-                      FINAL QUOTATION
+                      TOTAL QUOTATION
                     </span>
 
                     <h2>
@@ -7100,7 +6960,7 @@ function App() {
               </div>
             </div>
 
-            {shipment.pricing && (
+            {isAdmin && shipment.pricing && (
               <div className="shipment-details-section">
                 <span className="section-label">
                   PRICING SUMMARY
@@ -7114,8 +6974,6 @@ function App() {
                       ${formatUsd(shipment.pricing.base_freight_usd)}
                     </span>
                   </div>
-                  {isAdmin && (
-                    <>
                   <div className="shipment-details-item">
                     <span className="shipment-meta-label">
                       Operating Cost
@@ -7144,8 +7002,26 @@ function App() {
                       )}
                     </span>
                   </div>
-                    </>
-                  )}
+                </div>
+              </div>
+            )}
+
+            {!isAdmin && shipment.margin && (
+              <div className="shipment-details-section">
+                <span className="section-label">
+                  QUOTED PRICE
+                </span>
+                <div className="shipment-details-grid">
+                  <div className="shipment-details-item">
+                    <span className="shipment-meta-label">
+                      Total Quotation
+                    </span>
+                    <span className="shipment-meta-value shipment-meta-value-strong">
+                      ${formatUsd(
+                        shipment.margin.recommended_selling_price_usd
+                      )}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -7323,6 +7199,40 @@ function App() {
               <span className="administrator-dot"></span>
               Administrator
             </div>
+
+          </div>
+
+        </div>
+
+        {/*
+          MARITIME HERO BANNER
+          Background image: "Container Ship at the Hai Phong
+          International Container Terminal 01", Wikimedia
+          Commons (CC BY-SA 4.0), served locally from /maritime/.
+        */}
+
+        <div className="hero-banner hero-banner-admin">
+
+          <img
+            src="/maritime/container-ship-port.jpg"
+            alt="Container ship berthed at an international container terminal"
+          />
+
+          <div className="hero-banner-overlay">
+
+            <span className="hero-banner-label">
+              Operations Control
+            </span>
+
+            <h2>
+              Fleet, cargo &amp; platform oversight
+            </h2>
+
+            <p>
+              Monitor users, shipments, quotations and pricing
+              across the entire Maritime AI platform from one
+              command center.
+            </p>
 
           </div>
 
@@ -9401,327 +9311,6 @@ function App() {
     );
   };
 
-  // ==========================================
-  // ADMIN INVITATIONS PAGE
-  // ==========================================
-
-  const renderAdminInvitations = () => {
-    return (
-      <section className="results-screen page-view">
-
-        <div className="results-header">
-
-          <div>
-
-            <button
-              className="back-button"
-              type="button"
-              onClick={() => handleNavClick("Admin Dashboard")}
-            >
-              {"←"} Back to Admin Dashboard
-            </button>
-
-            <span className="section-label">
-              ADMIN
-            </span>
-
-            <h1>
-              Admin Invitations
-            </h1>
-
-            <p>
-              Invite new administrators. Each invitation expires
-              in 24 hours and can be used only once.
-            </p>
-
-          </div>
-
-        </div>
-
-        {/* INVITE FORM CARD */}
-
-        <div className="feedback-form-card invitation-form-card">
-
-          <div className="invitation-form-heading">
-
-            <span className="section-label">
-              NEW INVITATION
-            </span>
-
-            <h2>
-              Generate an invitation
-            </h2>
-
-            <p>
-              Enter the contact email of the person you want
-              to invite as an administrator.
-            </p>
-
-          </div>
-
-          {inviteError && (
-            <div className="error-message">
-              {inviteError}
-            </div>
-          )}
-
-          <form onSubmit={handleGenerateInvitation}>
-
-            <div className="feedback-field">
-              <label>
-                Contact / Email
-              </label>
-              <input
-                type="text"
-                value={inviteContact}
-                onChange={(e) => setInviteContact(e.target.value)}
-                placeholder="e.g. newadmin@example.com"
-                required
-              />
-            </div>
-
-            <div className="form-actions">
-              <button
-                className="primary-button"
-                type="submit"
-                disabled={inviteGenerating}
-              >
-                {inviteGenerating
-                  ? "Generating..."
-                  : "Generate Invitation"}
-              </button>
-            </div>
-
-          </form>
-
-        </div>
-
-        {/* INVITE RESULT - SUCCESS CARD */}
-
-        {inviteResult && (
-          <div className="invitation-result invitation-result-success">
-
-            <div className="invitation-result-head">
-
-              <span className="invitation-result-icon">
-                {"✓"}
-              </span>
-
-              <div>
-                <h3>
-                  Admin Invitation Generated
-                </h3>
-                <p>
-                  Invitation generated. Copy this link
-                  and send it to the invited person.
-                  The invitation expires in 24 hours.
-                </p>
-              </div>
-
-            </div>
-
-            <div className="invitation-meta-grid">
-
-              <div className="invitation-meta">
-                <span>
-                  INVITED CONTACT
-                </span>
-                <strong>
-                  {inviteResult.contact || "-"}
-                </strong>
-              </div>
-
-              <div className="invitation-meta">
-                <span>
-                  EXPIRES
-                </span>
-                <strong>
-                  {inviteResult.expires_at
-                    ? formatFullDate(inviteResult.expires_at)
-                    : "In 24 hours"}
-                </strong>
-              </div>
-
-            </div>
-
-            <div className="invitation-token-box">
-
-              <span className="invitation-token-label">
-                INVITATION LINK
-              </span>
-
-              <div className="invitation-token-readout">
-                <code>
-                  {buildInviteLink(inviteResult?.token)}
-                </code>
-              </div>
-
-            </div>
-
-            <button
-              className="primary-button invitation-copy-button"
-              type="button"
-              onClick={copyInviteLink}
-            >
-              {copiedInvite
-                ? "Copied ✓"
-                : "Copy Invitation Link"}
-            </button>
-
-          </div>
-        )}
-
-        {/* INVITATION HISTORY */}
-
-        <div className="comparison-section">
-
-          <div className="comparison-heading">
-
-            <div>
-
-              <span className="section-label">
-                GENERATED INVITATIONS
-              </span>
-
-              <h2>
-                Invitation History
-              </h2>
-
-            </div>
-
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={loadAdminInvitations}
-            >
-              Refresh
-            </button>
-
-          </div>
-
-          {adminInvitationsError && (
-            <div className="error-message">
-              {adminInvitationsError}
-            </div>
-          )}
-
-          {adminInvitationsLoading && (
-            <div className="loading-message">
-              <span className="loading-spinner"></span>
-              Loading invitations...
-            </div>
-          )}
-
-          {!adminInvitationsLoading &&
-            !adminInvitationsError &&
-            adminInvitations.length === 0 && (
-              <div className="history-empty">
-                <div className="history-empty-icon">
-                  {"⇪"}
-                </div>
-                <h3>
-                  No invitations generated yet.
-                </h3>
-                <p>
-                  Generated invitations will appear here.
-                </p>
-              </div>
-            )}
-
-          {!adminInvitationsLoading &&
-            !adminInvitationsError &&
-            adminInvitations.length > 0 && (
-              <div className="table-wrapper">
-
-                <table className="route-table admin-table">
-
-                  <thead>
-
-                    <tr>
-                      <th>Contact</th>
-                      <th>Created By</th>
-                      <th>Status</th>
-                      <th>Used</th>
-                      <th>Created At</th>
-                      <th>Expires At</th>
-                    </tr>
-
-                  </thead>
-
-                  <tbody>
-
-                    {adminInvitations.map((item) => {
-
-                      const isUsed = item.used === true;
-
-                      const isExpired =
-                        !isUsed &&
-                        item.expires_at &&
-                        new Date(item.expires_at) < new Date();
-
-                      return (
-                        <tr key={item.invitation_id}>
-
-                          <td>
-                            <strong>
-                              {item.contact || "-"}
-                            </strong>
-                          </td>
-
-                          <td>
-                            {item.created_by || "-"}
-                          </td>
-
-                          <td>
-                            <span
-                              className={`invitation-status-badge ${
-                                isUsed
-                                  ? "invitation-badge-used"
-                                  : isExpired
-                                  ? "invitation-badge-expired"
-                                  : "invitation-badge-active"
-                              }`}
-                            >
-                              {isUsed
-                                ? "Used"
-                                : isExpired
-                                ? "Expired"
-                                : "Active"}
-                            </span>
-                          </td>
-
-                          <td>
-                            {isUsed ? "Yes" : "No"}
-                          </td>
-
-                          <td>
-                            <span className="history-date">
-                              {formatFullDate(item.created_at)}
-                            </span>
-                          </td>
-
-                          <td>
-                            <span className="history-date">
-                              {formatFullDate(item.expires_at)}
-                            </span>
-                          </td>
-
-                        </tr>
-                      );
-                    })}
-
-                  </tbody>
-
-                </table>
-
-              </div>
-            )}
-
-        </div>
-
-      </section>
-    );
-  };
 
   // ==========================================
   // MAIN LAYOUT
@@ -9921,26 +9510,6 @@ function App() {
                 </span>
 
                 User Feedback
-
-              </button>
-
-              <button
-                className={
-                  activeNav === "Admin Invitations"
-                    ? "nav-item active"
-                    : "nav-item"
-                }
-                type="button"
-                onClick={() =>
-                  handleNavClick("Admin Invitations")
-                }
-              >
-
-                <span className="nav-icon">
-                  ⇪
-                </span>
-
-                Admin Invitations
 
               </button>
             </>
@@ -10337,9 +9906,6 @@ function App() {
 
           {isAdmin && view === "admin-feedback" &&
             renderAdminFeedback()}
-
-          {isAdmin && view === "admin-invitations" &&
-            renderAdminInvitations()}
 
           </div>
 

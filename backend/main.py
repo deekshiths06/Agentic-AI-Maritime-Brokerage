@@ -8,9 +8,6 @@ import jwt
 import pymongo
 import re
 import os
-import socket
-import secrets
-import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -84,33 +81,19 @@ def ensure_database_indexes():
 
         feedbacks_collection.create_index("user_id")
 
-        invitations_collection.create_index("token_hash")
-
-        invitations_collection.create_index(
-            "invited_contact"
-        )
-
         # -------------------------------------------------
         # LEGACY INDEX CLEANUP
-        # Older versions created unique, non-sparse indexes
-        # on "feedback_id" and "invitation_id", but no
-        # document ever sets those fields. MongoDB then
-        # treats every missing value as the same null key,
-        # so the second insert hits a duplicate-key error
-        # (HTTP 500). Drop them here so feedback and
-        # invitation submission work on existing databases.
+        # Older versions created a unique, non-sparse index
+        # on "feedback_id", but no document ever sets that
+        # field. MongoDB then treats every missing value as
+        # the same null key, so the second insert hits a
+        # duplicate-key error (HTTP 500). Drop it here so
+        # feedback submission works on existing databases.
         # -------------------------------------------------
 
         try:
             feedbacks_collection.drop_index(
                 "feedback_id_1"
-            )
-        except Exception:
-            pass
-
-        try:
-            invitations_collection.drop_index(
-                "invitation_id_1"
             )
         except Exception:
             pass
@@ -174,8 +157,6 @@ shipments_collection = db["shipments"]
 counters_collection = db["counters"]
 
 feedbacks_collection = db["feedbacks"]
-
-invitations_collection = db["admin_invitations"]
 
 
 # ============================================================
@@ -455,23 +436,6 @@ class FeedbackCreate(BaseModel):
     rating: int = Field(ge=1, le=5)
     feedback_type: str
     message: str
-
-
-class InvitationCreate(BaseModel):
-    invited_contact: str
-    invited_name: str = ""
-
-
-class InvitationAccept(BaseModel):
-    token: str
-    email: str = ""
-    name: str = ""
-    password: str
-    confirm_password: str = ""
-
-
-class InvitationVerify(BaseModel):
-    token: str
 
 
 class QuotationRejectRequest(BaseModel):
@@ -2896,370 +2860,6 @@ def get_admin_feedback(
             _serialize_feedback(record)
             for record in records
         ]
-    }
-
-
-# ============================================================
-# INVITATION - HELPERS
-# ============================================================
-
-INVITATION_EXPIRY_HOURS = 24
-
-# Frontend dev port (kept in sync with vite.config.js).
-FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", "5173"))
-
-# Optional override for the externally reachable frontend base URL.
-# If not set, the backend derives the laptop's LAN IP dynamically so
-# the invitation link works from other devices on the same network.
-FRONTEND_EXTERNAL_URL = os.getenv(
-    "FRONTEND_EXTERNAL_URL", ""
-).strip()
-
-
-def _get_lan_ip() -> str:
-    """Return this machine's LAN (non-loopback) IPv4 address."""
-
-    try:
-        with socket.socket(
-            socket.AF_INET, socket.SOCK_DGRAM
-        ) as sock:
-            sock.connect(("8.8.8.8", 80))
-            return sock.getsockname()[0]
-    except Exception:
-        pass
-
-    try:
-        return socket.gethostbyname(
-            socket.gethostname()
-        )
-    except Exception:
-        return "127.0.0.1"
-
-
-def get_frontend_origin() -> str:
-    """Externally reachable frontend origin used for invite links."""
-
-    if FRONTEND_EXTERNAL_URL:
-        return FRONTEND_EXTERNAL_URL.rstrip("/")
-
-    return "http://{}:{}".format(
-        _get_lan_ip(), FRONTEND_PORT
-    )
-
-
-def _hash_token(token: str) -> str:
-    return hashlib.sha256(
-        token.encode("utf-8")
-    ).hexdigest()
-
-
-def _serialize_invitation(record):
-
-    created_at = record.get("created_at")
-    expires_at = record.get("expires_at")
-
-    return {
-        "invitation_id": str(record["_id"]),
-        "contact": record.get("invited_contact", ""),
-        "created_by": record.get("created_by", ""),
-        "created_at": (
-            created_at.isoformat()
-            if created_at
-            else None
-        ),
-        "expires_at": (
-            expires_at.isoformat()
-            if expires_at
-            else None
-        ),
-        "used": record.get("used", False)
-    }
-
-
-# ============================================================
-# ADMIN - GENERATE INVITATION
-# ============================================================
-# Only admin can generate an invitation.
-# Returns the raw token once for the developer to copy.
-# The stored record only holds the SHA-256 hash.
-# ============================================================
-
-@app.post("/api/admin/invitations")
-def create_invitation(
-    request: InvitationCreate,
-    current_user: dict = Depends(require_admin)
-):
-
-    contact = request.invited_contact.strip()
-
-    if not contact:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Contact or email is required."
-        )
-
-    raw_token = secrets.token_urlsafe(48)
-
-    token_hash = _hash_token(raw_token)
-
-    now = datetime.utcnow()
-
-    invitation_doc = {
-        "token_hash": token_hash,
-        "invited_contact": contact.lower()
-            if "@" in contact
-            else contact,
-        "created_by": current_user.get("name", ""),
-        "created_at": now,
-        "expires_at": now + timedelta(
-            hours=INVITATION_EXPIRY_HOURS
-        ),
-        "used": False
-    }
-
-    result = invitations_collection.insert_one(
-        invitation_doc
-    )
-
-    return {
-        "success": True,
-        "message": "Invitation generated successfully.",
-        "invitation": {
-            "invitation_id": str(
-                result.inserted_id
-            ),
-            "contact": contact,
-            "token": raw_token,
-            "expires_in_hours": INVITATION_EXPIRY_HOURS,
-            "frontend_origin": get_frontend_origin()
-        }
-    }
-
-
-# ============================================================
-# ADMIN - LIST INVITATIONS
-# ============================================================
-
-@app.get("/api/admin/invitations")
-def list_invitations(
-    current_user: dict = Depends(require_admin)
-):
-
-    records = (
-        invitations_collection
-        .find({})
-        .sort("created_at", -1)
-        .limit(100)
-    )
-
-    return {
-        "success": True,
-        "invitations": [
-            _serialize_invitation(record)
-            for record in records
-        ]
-    }
-
-
-# ============================================================
-# INVITATION - VERIFY TOKEN
-# ============================================================
-# Public endpoint. Checks whether a token is valid
-# (exists, not expired, not used) so the frontend can
-# display the acceptance form or an error message.
-# ============================================================
-
-@app.post("/api/invitations/verify")
-def verify_invitation_token(
-    request: InvitationVerify
-):
-
-    token = request.token.strip()
-
-    if not token:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Invitation token is required."
-        )
-
-    token_hash = _hash_token(token)
-
-    invitation = invitations_collection.find_one({
-        "token_hash": token_hash
-    })
-
-    if not invitation:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Invalid invitation link."
-        )
-
-    if invitation.get("used", False):
-
-        raise HTTPException(
-            status_code=410,
-            detail=(
-                "This invitation has already been "
-                "used."
-            )
-        )
-
-    expires_at = invitation.get("expires_at")
-
-    if expires_at and datetime.utcnow() > expires_at:
-
-        raise HTTPException(
-            status_code=410,
-            detail="This invitation has expired."
-        )
-
-    return {
-        "success": True,
-        "contact": invitation.get(
-            "invited_contact", ""
-        )
-    }
-
-
-# ============================================================
-# INVITATION - ACCEPT
-# ============================================================
-# Creates a new user with role = admin after verifying
-# the invitation token. The same token cannot be reused.
-# ============================================================
-
-@app.post("/api/invitations/accept")
-def accept_invitation(
-    request: InvitationAccept
-):
-
-    token = request.token.strip()
-    email = request.email.strip()
-    name = request.name.strip()
-    password = request.password
-    confirm_password = request.confirm_password.strip()
-
-    if not token:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Invitation token is required."
-        )
-
-    validate_password(password)
-
-    if confirm_password and confirm_password != password:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Passwords do not match."
-        )
-
-    token_hash = _hash_token(token)
-
-    invitation = invitations_collection.find_one({
-        "token_hash": token_hash
-    })
-
-    if not invitation:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Invalid invitation."
-        )
-
-    if invitation.get("used", False):
-
-        raise HTTPException(
-            status_code=410,
-            detail="This invitation has already been used."
-        )
-
-    expires_at = invitation.get("expires_at")
-
-    if expires_at and datetime.utcnow() > expires_at:
-
-        raise HTTPException(
-            status_code=410,
-            detail="This invitation has expired."
-        )
-
-    invited_contact = invitation.get(
-        "invited_contact", ""
-    )
-
-    if email:
-
-        email = normalize_contact(email)
-
-        if email != invited_contact:
-
-            raise HTTPException(
-                status_code=400,
-                detail="Email does not match invitation."
-            )
-
-    existing = users_collection.find_one({
-        "contact": invited_contact
-    })
-
-    if existing:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "An account with this email already "
-                "exists."
-            )
-        )
-
-    if not name:
-
-        name = invited_contact.split("@")[0] \
-            if "@" in invited_contact \
-            else invited_contact
-
-    if len(name) < 3:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Please enter a valid full name."
-        )
-
-    hashed_password = bcrypt.hashpw(
-        password.encode("utf-8"),
-        bcrypt.gensalt()
-    ).decode("utf-8")
-
-    new_user = {
-        "name": name,
-        "contact": invited_contact,
-        "password": hashed_password,
-        "role": "admin",
-        "created_at": datetime.utcnow(),
-        "verified": True,
-        "mfa_enabled": False
-    }
-
-    result = users_collection.insert_one(new_user)
-
-    invitations_collection.update_one(
-        {"_id": invitation["_id"]},
-        {"$set": {"used": True}}
-    )
-
-    return {
-        "success": True,
-        "message": "Admin account created successfully.",
-        "user": {
-            "id": str(result.inserted_id),
-            "name": name,
-            "contact": invited_contact,
-            "role": "admin"
-        }
     }
 
 

@@ -5640,6 +5640,12 @@ body {
   letter-spacing: 0.4px;
 }
 
+.shipment-meta-value-strong {
+  color: #0f766e;
+  font-size: 26px;
+  font-weight: 700;
+}
+
 .shipment-meta-value {
   color: #20364e;
   font-size: 13px;
@@ -6301,162 +6307,6 @@ body {
   padding-top: 10px;
 }
 
-/* =========================================================
-   14. ADMIN INVITATIONS PAGE
-========================================================== */
-
-.invitation-form-card {
-  max-width: 720px;
-}
-
-.invitation-form-heading {
-  margin-bottom: 20px;
-}
-
-.invitation-form-heading h2 {
-  margin: 6px 0 6px;
-  color: #20364e;
-  font-size: 20px;
-}
-
-.invitation-form-heading p {
-  margin: 0;
-  color: #718497;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.invitation-result {
-  max-width: 720px;
-  margin: 0 auto 28px;
-  padding: 24px 26px;
-  border-radius: 14px;
-  border: 1px solid #b6e8c0;
-  background: linear-gradient(120deg, #f4fdf6 0%, #eafaf1 100%);
-  box-shadow: 0 12px 30px rgba(15, 138, 70, 0.1);
-  animation: cardIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.invitation-result-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
-
-.invitation-result-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: #1bb765;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 21px;
-  font-weight: 800;
-  flex-shrink: 0;
-  box-shadow: 0 6px 16px rgba(27, 183, 101, 0.3);
-}
-
-.invitation-result-head h3 {
-  margin: 2px 0 4px;
-  color: #0b6b3a;
-  font-size: 17px;
-}
-
-.invitation-result-head p {
-  margin: 0;
-  color: #3c7d5a;
-  font-size: 12.5px;
-  line-height: 1.6;
-}
-
-.invitation-meta-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-top: 20px;
-}
-
-.invitation-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.invitation-meta span {
-  color: #3c7d5a;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
-}
-
-.invitation-meta strong {
-  color: #0b5a30;
-  font-size: 13.5px;
-  word-break: break-all;
-}
-
-.invitation-token-box {
-  margin-top: 20px;
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: #0b3d23;
-}
-
-.invitation-token-label {
-  display: block;
-  margin-bottom: 8px;
-  color: #8fd7a8;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
-}
-
-.invitation-token-readout code {
-  display: block;
-  color: #eafaf1;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  padding: 10px;
-  font-size: 12px;
-  line-height: 1.6;
-  word-break: break-all;
-  font-family: "Consolas", ui-monospace, monospace;
-}
-
-.invitation-copy-button {
-  margin-top: 18px;
-}
-
-.invitation-status-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.invitation-badge-active {
-  background: #e5f7ee;
-  color: #0b6b3a;
-}
-
-.invitation-badge-used {
-  background: #eaf1f8;
-  color: #4e6779;
-}
-
-.invitation-badge-expired {
-  background: #fdeaea;
-  color: #c0392b;
-}
-
 /* ---------- SECTION LABEL ICON ---------- */
 
 .section-label-icon {
@@ -6540,7 +6390,6 @@ body {
 .secondary-button,
 .accept-quotation-button,
 .analyze-button,
-.invitation-copy-button,
 .danger-button {
   transition:
     transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
@@ -6552,7 +6401,6 @@ body {
 .secondary-button:hover,
 .accept-quotation-button:hover:not(:disabled),
 .analyze-button:hover,
-.invitation-copy-button:hover,
 .danger-button:hover {
   transform: translateY(-2px);
 }
@@ -6561,7 +6409,6 @@ body {
 .secondary-button:active,
 .accept-quotation-button:active:not(:disabled),
 .analyze-button:active,
-.invitation-copy-button:active,
 .danger-button:active {
   transform: translateY(0) scale(0.97);
 }
@@ -6632,7 +6479,101 @@ body {
 }
 
 .admin-dashboard .admin-quick-actions > button:hover {
-  transform: translateY(-3px);
+transform: translateY(-3px);
+}
+
+/* =========================================================
+   MARITIME HERO BANNERS
+========================================================== */
+
+.hero-banner {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 18px 40px rgba(10, 29, 50, 0.18);
+  margin-bottom: 30px;
+  background: #0b1d32;
+}
+
+.hero-banner img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-banner-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 32px 34px;
+  background: linear-gradient(
+    180deg,
+    rgba(7, 20, 35, 0.04) 0%,
+    rgba(7, 20, 35, 0.4) 60%,
+    rgba(7, 20, 35, 0.88) 100%
+  );
+  color: #ffffff;
+}
+
+.hero-banner-label {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.hero-banner-overlay h2 {
+  margin: 12px 0 6px;
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+}
+
+.hero-banner-overlay p {
+  margin: 0;
+  max-width: 560px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 900px) {
+  .hero-banner {
+    height: 260px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-banner {
+    height: 230px;
+    border-radius: 14px;
+  }
+
+  .hero-banner-overlay {
+    padding: 22px 20px;
+  }
+
+  .hero-banner-overlay h2 {
+    font-size: 22px;
+  }
 }
 
 /* =========================================================
@@ -6641,10 +6582,6 @@ body {
 
 @media (max-width: 640px) {
   .feedback-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .invitation-meta-grid {
     grid-template-columns: 1fr;
   }
 
@@ -6664,7 +6601,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .quotation-total-amount,
   .feedback-form-card,
-  .invitation-result,
   .feedback-record,
   .result-animate,
   .comparison-section,
@@ -11122,5 +11058,541 @@ body {
 
   .maritime-ais-banner .ais-banner-refresh {
     flex-shrink: 0;
+  }
+}
+
+/* =========================================================
+   20. PROFESSIONAL MARITIME REDESIGN
+   Additive override layer that replaces the sci-fi/AI surface
+   styling with a restrained enterprise maritime look. Pure CSS;
+   no App.jsx markup or behaviour was changed.
+========================================================== */
+
+/* ---------- Remove robotic / sci-fi decorations ---------- */
+
+.dashboard-backdrop,
+.ship-scene,
+.workstation-illustration,
+.dashboard-quote-section {
+  display: none !important;
+}
+
+/* ---------- Subdued ambient background ---------- */
+
+.app-container::before,
+.app-shell::before {
+  animation: none;
+}
+
+body,
+.app-shell,
+.app-container {
+  background: #f3f6fa;
+}
+
+/* ---------- Sidebar ---------- */
+
+.sidebar {
+  background: linear-gradient(180deg, #0a1c2e 0%, #0d2436 100%);
+  box-shadow: 6px 0 24px rgba(10, 29, 50, 0.1);
+}
+
+.brand-icon,
+.mobile-brand-icon {
+  background: #0e6ba8;
+  box-shadow: 0 6px 16px rgba(10, 42, 68, 0.35);
+}
+
+.sidebar-section-title {
+  color: #6c829b;
+}
+
+.nav-item {
+  color: #a8b9cb;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+}
+
+.nav-item.active {
+  background: rgba(31, 131, 224, 0.16);
+  box-shadow: inset 3px 0 0 #2f9de0;
+}
+
+.nav-item.active::before {
+  display: none;
+}
+
+/* ---------- Topbar ---------- */
+
+.topbar {
+  background: #ffffff;
+  border-bottom: 1px solid #dee6ee;
+}
+
+/* ---------- Hero banners ---------- */
+
+.hero-banner {
+  height: 330px;
+  border: 1px solid #d5dfea;
+  box-shadow: 0 20px 46px rgba(10, 29, 50, 0.16);
+}
+
+.hero-banner-overlay {
+  background: linear-gradient(
+    180deg,
+    rgba(6, 18, 31, 0.06) 0%,
+    rgba(6, 18, 31, 0.42) 55%,
+    rgba(6, 18, 31, 0.9) 100%
+  );
+}
+
+.hero-banner-label {
+  background: rgba(6, 18, 31, 0.55);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ---------- Welcome header ---------- */
+
+.ai-status-pill {
+  background: #0b1f33;
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #d5e7f7;
+  box-shadow: 0 6px 16px rgba(10, 29, 50, 0.14);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.ai-status-dot {
+  background: #2fbf7f;
+  box-shadow: none;
+  animation: none;
+}
+
+.welcome-label,
+.heading-label,
+.section-label {
+  color: #0e6ba8;
+}
+
+.welcome-block h1 .welcome-name {
+  background: none;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
+  -webkit-text-fill-color: #0c5f96;
+  color: #0c5f96;
+  animation: none;
+}
+
+.welcome-block h1::after {
+  background: linear-gradient(90deg, #0e6ba8 0%, #0d7a5f 100%);
+  background-size: 100% 100%;
+  animation: none;
+}
+
+/* ---------- Systems status panel ---------- */
+
+.ai-agent-panel {
+  background: #ffffff;
+  border-color: #dbe4ec;
+  box-shadow: 0 10px 28px rgba(19, 48, 75, 0.06);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.ai-agent-panel::before,
+.ai-agent-panel::after {
+  display: none;
+}
+
+.ai-panel-title {
+  color: #16304a;
+}
+
+.ai-agent-chip {
+  background: #ffffff;
+  border-color: #e0e8f0;
+  box-shadow: 0 4px 14px rgba(19, 48, 75, 0.05);
+}
+
+.ai-agent-chip:hover {
+  transform: translateY(-2px);
+  border-color: #b9d6ea;
+  box-shadow: 0 10px 22px rgba(19, 48, 75, 0.1);
+}
+
+.ai-chip-core {
+  border-radius: 9px;
+  background: linear-gradient(135deg, #106aa6, #0c5384);
+  box-shadow: 0 5px 12px rgba(13, 70, 110, 0.22);
+  animation: none;
+}
+
+.ai-chip-core::after {
+  display: none;
+}
+
+.ai-chip-status.online::before {
+  animation: none;
+  box-shadow: none;
+}
+
+/* ---------- Dashboard statistics ---------- */
+
+.stat-card {
+  background: #ffffff;
+  border-color: #dbe4ec;
+  box-shadow: 0 8px 24px rgba(19, 48, 75, 0.05);
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  border-color: #b9d6ea;
+  box-shadow: 0 14px 30px rgba(19, 48, 75, 0.1);
+}
+
+.stat-icon {
+  background: linear-gradient(135deg, #106aa6, #0c5384) !important;
+  box-shadow: 0 6px 14px rgba(13, 70, 110, 0.24) !important;
+  animation: none !important;
+}
+
+.stat-card:hover .stat-icon {
+  transform: none;
+  box-shadow: 0 8px 18px rgba(13, 70, 110, 0.3) !important;
+}
+
+.stat-glow {
+  display: none;
+}
+
+.stat-meta strong {
+  color: #16304a;
+}
+
+.stat-meta span {
+  color: #5f7387;
+}
+
+/* ---------- Route search CTA ---------- */
+
+.route-search-cta {
+  background: linear-gradient(135deg, #0b3d65 0%, #0e6ba8 100%);
+  border-color: #0b3d65;
+  color: #ffffff;
+  box-shadow: 0 16px 38px rgba(10, 40, 66, 0.18);
+  animation: none;
+}
+
+.route-search-cta::before,
+.route-search-cta::after {
+  display: none;
+}
+
+.route-search-cta:hover {
+  transform: translateY(-3px);
+  border-color: #0c6fb0;
+  box-shadow: 0 20px 44px rgba(10, 40, 66, 0.24);
+  animation-play-state: paused;
+}
+
+.route-search-cta h2,
+.route-search-cta .cta-text strong {
+  color: #ffffff;
+}
+
+.route-search-cta p,
+.route-search-cta .cta-text span,
+.route-search-cta .cta-small {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.cta-icon {
+  background: #ffffff;
+  color: #0c5f96;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  animation: none;
+}
+
+.cta-arrow {
+  background: #ffffff;
+  color: #0c5f96;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  animation: none;
+}
+
+.route-search-cta:hover .cta-arrow {
+  transform: translateX(6px);
+}
+
+/* ---------- Quick actions ---------- */
+
+.quick-action-btn {
+  background: #ffffff;
+  border-color: #dbe4ec;
+  box-shadow: 0 8px 22px rgba(19, 48, 75, 0.05);
+}
+
+.quick-action-btn::after {
+  display: none;
+}
+
+.quick-action-btn:hover {
+  transform: translateY(-2px);
+  border-color: #b9d6ea;
+  box-shadow: 0 12px 26px rgba(19, 48, 75, 0.1);
+}
+
+.qa-icon {
+  background: #e8f1fa;
+  color: #0c5f96;
+  box-shadow: none;
+}
+
+.quick-action-btn:hover .qa-icon {
+  transform: none;
+  background: #0e6ba8;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(14, 107, 168, 0.25);
+}
+
+.qa-text strong {
+  color: #16304a;
+}
+
+.qa-text span {
+  color: #5f7387;
+}
+
+/* ---------- Click hint ---------- */
+
+.click-hint {
+  display: block;
+  width: auto;
+  min-width: 240px;
+  margin: 22px auto 34px;
+  padding: 9px 18px;
+  border: 1px solid #dbe4ec;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3f5a74;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(19, 48, 75, 0.05);
+  text-align: center;
+}
+
+.click-hint:hover {
+  transform: none;
+  color: #0c5f96;
+  border-color: #b9d6ea;
+}
+
+.hint-arrow {
+  animation: none;
+}
+
+/* ---------- Information cards ---------- */
+
+.info-card,
+.info-card.dashboard-card {
+  background: #ffffff;
+  border-color: #dbe4ec;
+}
+
+.info-card.dashboard-card {
+  box-shadow: 0 8px 24px rgba(19, 48, 75, 0.05);
+}
+
+.info-card.dashboard-card::before {
+  display: none;
+}
+
+.info-card.dashboard-card:hover {
+  transform: translateY(-3px);
+  border-color: #b9d6ea;
+  box-shadow: 0 14px 30px rgba(19, 48, 75, 0.1);
+}
+
+.info-card-icon {
+  background: #e8f1fa;
+  color: #0c5f96;
+}
+
+.info-card.dashboard-card:hover .info-card-icon {
+  transform: none;
+  background: #0e6ba8;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(14, 107, 168, 0.22);
+}
+
+/* ---------- Forms, buttons, focus ---------- */
+
+.primary-button,
+.analyze-button {
+  background: #0e6ba8;
+  box-shadow: 0 8px 20px rgba(14, 107, 168, 0.22);
+}
+
+.primary-button:hover:not(:disabled),
+.analyze-button:hover {
+  background: #0a5786;
+}
+
+.secondary-button {
+  border-color: #ccd8e2;
+  background: #ffffff;
+  color: #3f5a74;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-group input:focus,
+.form-group select:focus,
+.feedback-field select:focus,
+.feedback-field textarea:focus,
+.feedback-field input:focus,
+.reject-modal-textarea:focus,
+.admin-search-box input:focus,
+.admin-filter-select:focus,
+.route-map-field select:focus,
+.route-map-field input:focus,
+.maritime-map-control select:focus,
+.maritime-map-control input:focus {
+  border-color: #0e6ba8;
+  box-shadow: 0 0 0 3px rgba(14, 107, 168, 0.12);
+}
+
+/* ---------- Results ---------- */
+
+.recommendation-card::before {
+  background: radial-gradient(
+    circle at 0% 0%,
+    rgba(14, 107, 168, 0.08),
+    transparent 55%
+  );
+  animation: none;
+  opacity: 1;
+}
+
+.recommended-row {
+  background: #eff8f3;
+}
+
+/* ---------- Quotation total (customer-facing) ---------- */
+
+.quotation-total-section {
+  background: linear-gradient(135deg, #0b2944 0%, #103c63 55%, #144b7a 100%) !important;
+  border-color: #144b7a !important;
+}
+
+.quotation-total-currency {
+  color: #9fd0f2;
+}
+
+.quotation-total-amount {
+  color: #ffffff;
+}
+
+/* ---------- Admin dashboard ---------- */
+
+.admin-stat-icon {
+  background: linear-gradient(135deg, #0d2b44, #113753);
+  color: #85c9f0;
+}
+
+/* ---------- Dashboard entrance easing ---------- */
+
+.dashboard-animated .ai-agent-panel,
+.dashboard-animated .dashboard-stats,
+.dashboard-animated .dashboard-quick-actions,
+.dashboard-animated .route-search-cta .cta-content,
+.dashboard-animated .click-hint,
+.dashboard-animated .info-card.dashboard-card {
+  animation-delay: 0s;
+}
+
+/* ---------- Responsive reaffirmation ---------- */
+
+@media (max-width: 900px) {
+  .hero-banner {
+    height: 280px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-banner {
+    height: 240px;
+    border-radius: 14px;
+  }
+
+  .click-hint {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   21. USER QUOTATION TOTAL + SUBTLE MARITIME BACKDROP
+   Visual-only fixes.
+   - Restores a visible TOTAL QUOTATION amount on the
+     customer-facing quotation (the redesign painted the
+     amount white but left the readout card white).
+   - Adds a faint maritime photo wash to non-dashboard
+     pages. Dashboards (User / Admin) are NOT included.
+   No layout, markup, logic or backend changes.
+========================================================= */
+
+/* ---------- Visible TOTAL QUOTATION readout ---------- */
+
+.quotation-total-section .quotation-total-readout {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 10px 26px rgba(6, 18, 31, 0.25);
+}
+
+.quotation-total-section .quotation-total-currency {
+  color: #9fd0f2;
+}
+
+.quotation-total-section .quotation-total-amount {
+  color: #ffffff;
+}
+
+/* ---------- Subtle maritime backdrop (non-dashboard pages) ---------- */
+
+.search-screen,
+.results-screen,
+.howto-screen,
+.shipments-screen,
+.shipment-details-screen,
+.maritime-map-view {
+  position: relative;
+  background-color: #f3f6fa;
+  background-image:
+    linear-gradient(
+      rgba(247, 250, 253, 0.88),
+      rgba(247, 250, 253, 0.88)
+    ),
+    url("/maritime/container-ship-port.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+@media (max-width: 768px) {
+  .search-screen,
+  .results-screen,
+  .howto-screen,
+  .shipments-screen,
+  .shipment-details-screen,
+  .maritime-map-view {
+    background-attachment: scroll;
   }
 }
