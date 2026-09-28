@@ -11596,3 +11596,307 @@ body,
     background-attachment: scroll;
   }
 }
+
+/* =========================================================
+   22. WEATHER INTELLIGENCE (WEATHER AGENT)
+   =========================================================
+   Presentation only for the Weather Agent output.
+   - User  -> "Weather Analysis" card on the Route
+     Intelligence results page.
+   - Admin -> compact weather cell inside the EXISTING
+     Shipments and Route Activity tables. No new page,
+     no new sidebar item, no layout change to the
+     surrounding admin UI.
+   Colors, radii, borders and typography reuse the
+   existing result-detail / admin-role-badge tokens so
+   the new blocks sit inside the current design.
+   No weather value is defined in CSS.
+   ========================================================= */
+
+.weather-section {
+  margin-top: 20px;
+}
+
+/* ---------- User: Weather Analysis card ---------- */
+
+.weather-card {
+  background: white;
+  border: 1px solid #dfe7ee;
+  border-radius: 15px;
+  box-shadow: 0 8px 30px rgba(19, 48, 75, 0.04);
+  padding: 24px 26px 26px;
+}
+
+.weather-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e7edf2;
+}
+
+.weather-card-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #eaf5ff;
+  border: 1px solid #cfe6f7;
+  font-size: 20px;
+}
+
+.weather-card-header h2 {
+  margin: 5px 0 0;
+  color: #20364e;
+  font-size: 20px;
+}
+
+.weather-card-header p {
+  margin: 5px 0 0;
+  color: #6e8397;
+  font-size: 12px;
+}
+
+.weather-card-loading {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #557087;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---------- Risk banner ---------- */
+
+.weather-risk-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: rgba(234, 245, 255, 0.65);
+  border: 1px solid #cfe6f7;
+}
+
+.weather-risk-label {
+  display: block;
+  color: #6e8397;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.weather-risk-route {
+  text-align: right;
+}
+
+.weather-risk-route strong {
+  display: block;
+  margin-top: 6px;
+  color: #1d3953;
+  font-size: 14px;
+}
+
+/* ---------- Risk badge (shared by user card + admin cell) ---------- */
+
+.weather-risk-badge {
+  display: inline-block;
+  margin-top: 7px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.weather-risk-badge-sm {
+  margin-top: 0;
+  padding: 4px 10px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.weather-risk-low {
+  background: #e7f7ed;
+  color: #18763d;
+  border: 1px solid #bfe3cc;
+}
+
+.weather-risk-medium {
+  background: #fdf3e2;
+  color: #b45309;
+  border: 1px solid #f0dcb4;
+}
+
+.weather-risk-high {
+  background: #fdecec;
+  color: #b42318;
+  border: 1px solid #f4c9c6;
+}
+
+.weather-risk-unknown {
+  background: #f1f4f7;
+  color: #6e8397;
+  border: 1px solid #dbe3ea;
+}
+
+/* ---------- Metric grid ---------- */
+
+.weather-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.weather-metric {
+  padding: 15px 16px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(201, 220, 233, 0.75);
+}
+
+.weather-metric span {
+  display: block;
+  color: #6e8397;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.weather-metric strong {
+  display: block;
+  margin-top: 7px;
+  color: #1d3953;
+  font-size: 18px;
+}
+
+/* ---------- Reason / advisory ---------- */
+
+.weather-advisory {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: rgba(247, 250, 253, 0.9);
+  border: 1px solid #d8e8f2;
+}
+
+.weather-advisory-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #0c3556;
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.weather-advisory strong {
+  display: block;
+  color: #1d3953;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.weather-advisory span {
+  display: block;
+  margin: 5px 0 10px;
+  color: #557087;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.weather-advisory span:last-child {
+  margin-bottom: 0;
+}
+
+/* ---------- Fail-safe state ---------- */
+
+.weather-unavailable {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 20px;
+  padding: 18px;
+  border-radius: 10px;
+  background: #f7fafd;
+  border: 1px dashed #d3dfe8;
+}
+
+.weather-unavailable strong {
+  color: #557087;
+  font-size: 13px;
+}
+
+.weather-unavailable span {
+  color: #7d90a3;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* ---------- Admin: compact cell inside existing tables ---------- */
+
+.weather-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.weather-cell-condition {
+  color: #1d3953;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.weather-cell-reading {
+  color: #6e8397;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.weather-cell-unavailable {
+  color: #7d90a3;
+  font-size: 12px;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+.route-table td .weather-cell {
+  min-width: 132px;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 900px) {
+  .weather-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .weather-risk-route {
+    text-align: left;
+  }
+}
+
+@media (max-width: 520px) {
+  .weather-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+

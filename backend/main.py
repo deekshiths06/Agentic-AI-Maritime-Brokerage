@@ -13,10 +13,16 @@ from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 
-from app.models import RouteRequest
+from app.models import RouteRequest, WeatherAnalyzeRequest
 from app.agents.route_agent import analyze_route
 from app.agents.quotation_service import (
     generate_quotation
+)
+from app.agents.weather_agent import (
+    analyze_weather,
+    analyze_routes_weather,
+    get_weather_summary,
+    weather_for_route
 )
 from app.services.ais_service import (
     fetch_ais_vessels,
@@ -608,7 +614,7 @@ def register_user(request: RegisterRequest):
         "password": hashed_password,
         "role": "user",
         "created_at": datetime.utcnow(),
-        "verified": True,
+        "verified": False,
         "mfa_enabled": False
     }
 
@@ -952,6 +958,18 @@ def _serialize_history_record(record):
         ),
         "pricing": record.get("pricing"),
         "margin": record.get("margin"),
+
+        # -------------------------------------------------
+        # WEATHER RISK (WEATHER AGENT)
+        # Additive route intelligence for the admin route
+        # activity view. Resolved from weather.csv only; no
+        # history document is modified.
+        # -------------------------------------------------
+
+        "weather": weather_for_route(
+            record.get("route_id", "")
+        ),
+
         "approval_status": record.get(
             "approval_status", ""
         ),
@@ -1490,6 +1508,150 @@ def analyze_shipment(
 
 
 # ============================================================
+# WEATHER ANALYSIS (WEATHER AGENT)
+# ============================================================
+# The Weather Agent is an additional intelligence layer on
+# top of the existing Route Agent. It reads the weather
+# dataset (backend/app/weather.csv), grades the conditions
+# of the selected route and returns a LOW / MEDIUM / HIGH
+# weather risk with its explanation.
+#
+# It never selects a route, never changes a route score and
+# never changes pricing, margin, quotations or shipments.
+#
+# The route is identified by:
+#   * route_id   - preferred, straight from the Route Agent
+#   * origin + destination - when only a corridor is known
+#   * route_ids  - several routes at once, used to show the
+#                  weather of alternative routes
+#
+# A missing record, a missing dataset or a malformed row
+# never returns a server error: the response carries
+# "available": false and the standard not-available message
+# so Route Intelligence keeps working.
+# ============================================================
+
+@app.post(
+    "/api/weather/analyze",
+    summary="Analyze weather conditions for a route",
+    response_description=(
+        "Weather values from the dataset, the calculated "
+        "weather risk (LOW / MEDIUM / HIGH) and the reason "
+        "behind it."
+    )
+)
+def analyze_weather_route(
+    request: WeatherAnalyzeRequest
+):
+
+    if not request.has_route():
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "A route_id, or an origin and destination "
+                "pair, is required to analyze weather."
+            )
+        )
+
+    route_ids = request.requested_route_ids()
+
+    try:
+
+        # -------------------------------------------------
+        # SEVERAL ROUTES (recommended + alternatives)
+        # -------------------------------------------------
+
+        if len(route_ids) > 1 or (
+            len(route_ids) == 1
+            and request.route_ids
+        ):
+
+            analyses = analyze_routes_weather(route_ids)
+
+            primary = next(
+                (
+                    analysis
+                    for analysis in analyses
+                    if analysis.get("route_id")
+                    == route_ids[0]
+                ),
+                analyses[0] if analyses else None
+            )
+
+            return {
+                "success": True,
+                "count": len(analyses),
+                "route_ids": route_ids,
+                "weather": primary,
+                "routes": analyses
+            }
+
+        # -------------------------------------------------
+        # SINGLE ROUTE
+        # -------------------------------------------------
+
+        if route_ids:
+
+            weather = analyze_weather(
+                route_id=route_ids[0],
+                origin=request.origin,
+                destination=request.destination
+            )
+
+        else:
+
+            weather = analyze_weather(
+                origin=request.origin,
+                destination=request.destination
+            )
+
+        return {
+            "success": True,
+            "count": 1,
+            "route_ids": route_ids,
+            "weather": weather,
+            "routes": [weather]
+        }
+
+    except ValueError as error:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
+
+    except Exception as error:
+
+        # The weather module is optional intelligence. It
+        # never breaks the surrounding application.
+        logger.warning(
+            "Weather analysis error: %s", error
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to analyze weather for this route."
+        )
+
+
+# ============================================================
+# WEATHER DATASET SUMMARY
+# ============================================================
+# Exposes how much of the existing route coverage the weather
+# dataset covers. Read-only reference information.
+# ============================================================
+
+@app.get(
+    "/api/weather/summary",
+    summary="Weather dataset coverage summary"
+)
+def get_weather_dataset_summary():
+
+    return get_weather_summary()
+
+
+# ============================================================
 # QUOTATION GENERATION
 # ============================================================
 
@@ -1789,6 +1951,19 @@ def _serialize_shipment(shipment: dict) -> dict:
         ),
         "pricing": shipment.get("pricing"),
         "margin": shipment.get("margin"),
+
+        # -------------------------------------------------
+        # WEATHER RISK (WEATHER AGENT)
+        # Read-only intelligence resolved from weather.csv
+        # for the shipment's route_id. Additive only: no
+        # shipment document, workflow or status is changed,
+        # and a missing weather record simply returns null.
+        # -------------------------------------------------
+
+        "weather": weather_for_route(
+            shipment.get("route_id", "")
+        ),
+
         "status": shipment.get(
             "status", SHIPMENT_STATUS_FLOW[0]
         ),

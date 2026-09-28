@@ -321,6 +321,315 @@ function RouteHistoryStatus({ item }) {
   );
 }
 
+// ==========================================
+// WEATHER DISPLAY HELPERS (WEATHER AGENT)
+// ==========================================
+// Presentation only. Every value is read from the
+// Weather Agent response (backend/app/weather.csv
+// via /api/weather/analyze, and the read-only
+// `weather` block already added to the existing
+// admin serializers). No weather number, condition
+// or risk level is written in this file - the
+// Weather Agent calculates the LOW / MEDIUM /
+// HIGH risk, this only renders it.
+// ==========================================
+
+// Shown whenever the Weather Agent has no record for
+// the route, so a missing dataset or an unknown
+// route_id degrades to a safe, readable state
+// instead of an empty cell or a broken page.
+const WEATHER_UNAVAILABLE_LABEL = "Weather Unavailable";
+
+// Accepts the Weather API payload (`available`) and
+// the compact admin block (no `available` flag) and
+// normalises both into one truthy/falsy check.
+const hasWeather = (payload) => {
+  if (!payload) return false;
+  if (payload.available === false) return false;
+
+  return Boolean(
+    payload.weather_risk ||
+      payload.weather_condition ||
+      payload.storm_risk
+  );
+};
+
+const weatherRiskClass = (risk) => {
+  const value = String(risk || "").trim().toUpperCase();
+
+  if (value === "HIGH") return "weather-risk-high";
+  if (value === "MEDIUM") return "weather-risk-medium";
+  if (value === "LOW") return "weather-risk-low";
+
+  return "weather-risk-unknown";
+};
+
+// Dataset text is already title-cased by the Weather
+// Agent; this only normalises unexpected casing.
+const weatherText = (value, fallback = "-") => {
+  const text = String(value ?? "").trim();
+
+  if (!text) return fallback;
+
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+const weatherMeasure = (value, unit) => {
+  if (value == null || value === "") return "-";
+
+  const number = Number(value);
+
+  if (isNaN(number)) return String(value);
+
+  const formatted = Number.isInteger(number)
+    ? number.toLocaleString()
+    : number.toFixed(1);
+
+  return unit ? `${formatted} ${unit}` : formatted;
+};
+
+// "Mumbai → Kochi (R00004)" for the user results card.
+const getWeatherRouteFallback = (route) => {
+  if (!route) return "";
+
+  const origin = String(route.origin || "").trim();
+  const destination = String(route.destination || "").trim();
+  const routeId = String(route.route_id || "").trim();
+
+  if (origin && destination) {
+    const corridor = `${origin} → ${destination}`;
+
+    return routeId ? `${corridor} (${routeId})` : corridor;
+  }
+
+  return routeId;
+};
+
+const weatherRouteLabel = (payload, fallbackRoute) => {
+  const origin = String(payload?.origin || "").trim();
+  const destination = String(
+    payload?.destination || ""
+  ).trim();
+  const routeId = String(payload?.route_id || "").trim();
+
+  if (origin && destination) {
+    const corridor = `${origin} → ${destination}`;
+
+    return routeId ? `${corridor} (${routeId})` : corridor;
+  }
+
+  return (
+    getWeatherRouteFallback(fallbackRoute) ||
+    routeId ||
+    WEATHER_UNAVAILABLE_LABEL
+  );
+};
+
+// Full Weather Analysis card for the user Route
+// Intelligence results view. Reads every field from
+// the Weather API response and falls back to the
+// safe "Weather Unavailable" state.
+function WeatherAnalysisCard({
+  weather,
+  loading,
+  route,
+}) {
+  return (
+    <div className="weather-card result-animate result-animate-2">
+
+      <div className="weather-card-header">
+
+        <div className="weather-card-icon">
+          ⛅
+        </div>
+
+        <div>
+          <span className="section-label">
+            WEATHER ANALYSIS
+          </span>
+          <h2>
+            Weather Conditions on this Route
+          </h2>
+          <p>
+            Calculated by the Weather Agent from
+            the project weather dataset
+          </p>
+        </div>
+
+        {loading && (
+          <span className="weather-card-loading">
+            <span className="loading-spinner"></span>
+            Checking conditions...
+          </span>
+        )}
+
+      </div>
+
+      {/* FAIL-SAFE: no weather record for this route */}
+
+      {!loading && !hasWeather(weather) && (
+        <div className="weather-unavailable">
+          <strong>
+            {WEATHER_UNAVAILABLE_LABEL}
+          </strong>
+          <span>
+            {weather?.message ||
+              weather?.risk_reason ||
+              "No weather record exists for this route in the weather dataset. Route intelligence is unaffected."}
+          </span>
+        </div>
+      )}
+
+      {!loading && hasWeather(weather) && (
+        <>
+
+          <div className="weather-risk-banner">
+            <div>
+              <span className="weather-risk-label">
+                Calculated Weather Risk
+              </span>
+              <span
+                className={`weather-risk-badge ${weatherRiskClass(
+                  weather.weather_risk
+                )}`}
+              >
+                {weatherText(weather.weather_risk, "-")}
+              </span>
+            </div>
+
+            <div className="weather-risk-route">
+              <span className="weather-risk-label">
+                Route
+              </span>
+              <strong>
+                {weatherRouteLabel(weather, route)}
+              </strong>
+            </div>
+          </div>
+
+          <div className="weather-metrics">
+
+            <div className="weather-metric">
+              <span>Weather Condition</span>
+              <strong>
+                {weatherText(
+                  weather.weather_condition,
+                  "-"
+                )}
+              </strong>
+            </div>
+
+            <div className="weather-metric">
+              <span>Storm Risk</span>
+              <strong>
+                {weatherText(weather.storm_risk, "-")}
+              </strong>
+            </div>
+
+            <div className="weather-metric">
+              <span>Wind Speed</span>
+              <strong>
+                {weatherMeasure(
+                  weather.wind_speed_knots,
+                  "knots"
+                )}
+              </strong>
+            </div>
+
+            <div className="weather-metric">
+              <span>Wave Height</span>
+              <strong>
+                {weatherMeasure(
+                  weather.wave_height_m,
+                  "m"
+                )}
+              </strong>
+            </div>
+
+            <div className="weather-metric">
+              <span>Rainfall</span>
+              <strong>
+                {weatherMeasure(
+                  weather.rainfall_mm,
+                  "mm"
+                )}
+              </strong>
+            </div>
+
+            <div className="weather-metric">
+              <span>Visibility</span>
+              <strong>
+                {weatherMeasure(
+                  weather.visibility_km,
+                  "km"
+                )}
+              </strong>
+            </div>
+
+          </div>
+
+          <div className="weather-advisory">
+            <span className="weather-advisory-icon">
+              i
+            </span>
+            <div>
+              <strong>Risk Reason</strong>
+              <span>
+                {weather.risk_reason || "-"}
+              </span>
+              <strong>Advisory</strong>
+              <span>
+                {weather.advisory || "-"}
+              </span>
+            </div>
+          </div>
+
+        </>
+      )}
+
+    </div>
+  );
+}
+
+// Compact weather cell for the existing admin tables
+// (Shipments, Route Activity). Shows only the risk
+// level, the condition and wind / wave, and degrades
+// to "Weather Unavailable" when the Weather Agent has
+// no record for the shipment's route_id.
+function WeatherRiskCell({ weather }) {
+  if (!hasWeather(weather)) {
+    return (
+      <span className="weather-cell-unavailable">
+        {WEATHER_UNAVAILABLE_LABEL}
+      </span>
+    );
+  }
+
+  return (
+    <div className="weather-cell">
+
+      <span
+        className={`weather-risk-badge weather-risk-badge-sm ${weatherRiskClass(
+          weather.weather_risk
+        )}`}
+        title={weather.risk_reason || ""}
+      >
+        {weatherText(weather.weather_risk, "-")}
+      </span>
+
+      <span className="weather-cell-condition">
+        {weatherText(weather.weather_condition, "-")}
+      </span>
+
+      <span className="weather-cell-reading">
+        {weatherMeasure(weather.wind_speed_knots, "kn")} ·{" "}
+        {weatherMeasure(weather.wave_height_m, "m")}
+      </span>
+
+    </div>
+  );
+}
+
 function App() {
   const readSavedUser = () => {
     try {
@@ -406,6 +715,25 @@ function App() {
   const [quotationError, setQuotationError] = useState("");
   const [quotationSuccess, setQuotationSuccess] =
     useState("");
+
+  // ==========================================
+  // WEATHER INTELLIGENCE (WEATHER AGENT)
+  // ==========================================
+  // Read-only layer on top of the existing Route Agent
+  // result. Every value comes from POST /api/weather/analyze,
+  // which reads backend/app/weather.csv through the Weather
+  // Agent. Nothing here is hard-coded and nothing here can
+  // change the recommended route, the route score, the
+  // quotation or a shipment.
+  //
+  // Fail-safe: a failed or empty weather response resolves
+  // to a single "not available" payload so Route
+  // Intelligence keeps working exactly as before.
+  // ==========================================
+
+  const [weather, setWeather] = useState(null);
+  const [weatherLoading, setWeatherLoading] =
+    useState(false);
 
   // ==========================================
   // SHIPMENT STATE
@@ -604,6 +932,7 @@ function App() {
     setView("search");
     setActiveNav("Routes");
     setResult(null);
+    setWeather(null);
     setError("");
     setAcceptError("");
     setAcceptResult(null);
@@ -1057,6 +1386,93 @@ function App() {
   };
 
   // ==========================================
+  // WEATHER ANALYSIS (WEATHER AGENT)
+  // ==========================================
+  // Requests the weather record of the route the Route Agent
+  // selected, keyed on its route_id. The dataset values and
+  // the LOW / MEDIUM / HIGH risk are calculated by the
+  // Weather Agent on the backend - this function only
+  // displays what the Weather API returns.
+  //
+  // The request is deliberately non-blocking: route results
+  // are already rendered, so a slow or failing weather
+  // request can never delay or break Route Intelligence.
+  // ==========================================
+
+  const buildWeatherRouteIds = (routeData) => {
+    const routes = [];
+
+    const recommended =
+      routeData?.recommended_route ||
+      routeData?.recommended ||
+      routeData?.best_route ||
+      (Array.isArray(routeData?.route_options) &&
+        routeData.route_options.length > 0
+          ? routeData.route_options[0]
+          : null);
+
+    const recommendedId = String(
+      getValue(recommended, ["route_id", "routeId"], "")
+    ).trim();
+
+    if (recommendedId && recommendedId !== "-") {
+      routes.push(recommendedId);
+    }
+
+    return routes;
+  };
+
+  const loadRouteWeather = async (routeData) => {
+    const routeIds = buildWeatherRouteIds(routeData);
+
+    if (routeIds.length === 0) {
+      setWeather(null);
+      setWeatherLoading(false);
+      return;
+    }
+
+    setWeatherLoading(true);
+
+    try {
+      const response = await fetch(
+        "/api/weather/analyze",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+
+          body: JSON.stringify({
+            route_id: routeIds[0],
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Unable to analyze weather for this route."
+        );
+      }
+
+      setWeather(data?.weather || null);
+    } catch (err) {
+      // Fail-safe: the weather module is optional
+      // intelligence, so a failure is logged and the card
+      // falls back to its "Weather Unavailable" state.
+      console.error("Weather analysis error:", err);
+
+      setWeather(null);
+    } finally {
+      setWeatherLoading(false);
+    }
+  };
+
+  // ==========================================
   // ANALYZE ROUTE
   // ==========================================
 
@@ -1065,6 +1481,7 @@ function App() {
 
     setError("");
     setResult(null);
+    setWeather(null);
     setQuotation(null);
     setQuotationError("");
     setQuotationSuccess("");
@@ -1160,6 +1577,10 @@ function App() {
       setResult(data);
       setView("results");
       setActiveNav("Routes");
+
+      // Weather Agent: independent, non-blocking
+      // intelligence for the recommended route.
+      loadRouteWeather(data);
     } catch (err) {
       console.error("Route analysis error:", err);
 
@@ -1184,6 +1605,7 @@ function App() {
 
     setError("");
     setResult(null);
+    setWeather(null);
     setQuotation(null);
     setQuotationError("");
     setQuotationSuccess("");
@@ -1286,6 +1708,11 @@ function App() {
         : "";
 
       setSelectedRouteId(recId);
+
+      // Weather Agent: same independent, non-blocking
+      // intelligence, so the weather is already resolved when
+      // the user returns to the results view.
+      loadRouteWeather(data);
     } catch (err) {
       console.error("Route map analysis error:", err);
 
@@ -3877,6 +4304,18 @@ function App() {
               </div>
             )}
 
+          </div>
+        )}
+
+        {/* WEATHER ANALYSIS (WEATHER AGENT) */}
+
+        {recommendedRoute && (
+          <div className="weather-section">
+            <WeatherAnalysisCard
+              weather={weather}
+              loading={weatherLoading}
+              route={recommendedRoute}
+            />
           </div>
         )}
 
@@ -6586,6 +7025,50 @@ function App() {
     return `${day} ${month} ${year}, ${hours}:${minutes} ${meridiem}`;
   };
 
+  const formatAdminUsersDate = (value) => {
+    if (!value) return "-";
+
+    let date;
+
+    if (value instanceof Date) {
+      date = value;
+    } else if (typeof value === "string") {
+      const text = value.trim();
+      const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text);
+      date = new Date(hasTimezone ? text : `${text}Z`);
+    } else {
+      return String(value);
+    }
+
+    if (!date || isNaN(date.getTime())) return String(value);
+
+    const parts = new Intl.DateTimeFormat("en", {
+      timeZone: "Asia/Kolkata",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    }).formatToParts(date);
+
+    const valueByType = {};
+    for (const part of parts) {
+      valueByType[part.type] = part.value;
+    }
+
+    const day = valueByType.day;
+    const month = valueByType.month;
+    const year = valueByType.year;
+    const hour = valueByType.hour;
+    const minute = valueByType.minute;
+    const second = valueByType.second;
+    const meridiem = valueByType.dayPeriod;
+
+    return `${day} ${month} ${year}, ${hour}:${minute}:${second} ${meridiem} IST`;
+  };
+
   const formatMoney = (value) => {
     if (value === undefined || value === null || value === "") {
       return "-";
@@ -7825,7 +8308,7 @@ function App() {
 
                         <td>
                           <span className="history-date">
-                            {formatAdminDate(
+                            {formatAdminUsersDate(
                               item.created_at
                             )}
                           </span>
@@ -7963,6 +8446,7 @@ function App() {
                       <th>Distance</th>
                       <th>Tranships</th>
                       <th>Score</th>
+                      <th>Weather</th>
                       <th>Date</th>
 
                     </tr>
@@ -8034,6 +8518,18 @@ function App() {
                           {item.route_score != null
                             ? Number(item.route_score).toFixed(2)
                             : "-"}
+                        </td>
+
+                        {/* WEATHER RISK (WEATHER AGENT) - resolved
+                            from weather.csv for this record's
+                            route_id, so it is safe to read here
+                            and simply shows "Weather
+                            Unavailable" when absent. */}
+
+                        <td>
+                          <WeatherRiskCell
+                            weather={item.weather}
+                          />
                         </td>
 
                         <td>
@@ -8608,6 +9104,7 @@ function App() {
                       <th>Cargo</th>
                       <th>Containers</th>
                       <th>Route</th>
+                      <th>Weather</th>
                       <th>Status</th>
                       <th>Created</th>
 
@@ -8668,6 +9165,20 @@ function App() {
                               {item.route_name || "-"}
                             </span>
                           </div>
+                        </td>
+
+                        {/* WEATHER RISK (WEATHER AGENT) - read-only
+                            intelligence resolved from weather.csv
+                            for the shipment's route_id. It never
+                            affects the status dropdown or the
+                            shipment workflow, and simply shows
+                            "Weather Unavailable" when the route
+                            has no weather record. */}
+
+                        <td>
+                          <WeatherRiskCell
+                            weather={item.weather}
+                          />
                         </td>
 
                         <td>
