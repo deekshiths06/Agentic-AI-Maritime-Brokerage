@@ -25,6 +25,24 @@ import os
 #
 # The target_margin_percent is read but NOT applied here.
 # Margin calculation belongs to the Margin Agent.
+#
+# CONTAINER COUNT
+# Every cost component in pricing.csv is a PER-CONTAINER
+# rate for the lane (ocean freight per box, bunker/fuel per
+# box, port handling per box, lane risk per box). The cost of
+# the shipment is therefore the per-container operating cost
+# multiplied by the number of containers:
+#
+# operating_cost =
+#     (base_freight
+#      + fuel_surcharge
+#      + port_charge
+#      + risk_surcharge) * containers
+#
+# The component values are returned already multiplied so the
+# breakdown shown to the customer adds up to the operating
+# cost of the whole shipment. The rate for one container is
+# still available in `*_per_container_usd`.
 # =========================================================
 
 
@@ -88,7 +106,11 @@ def load_pricing_data():
     return df
 
 
-def calculate_pricing(route_id: str, base_freight: float):
+def calculate_pricing(
+    route_id: str,
+    base_freight: float,
+    containers: int = 1
+):
     """
     Calculate pricing for a given route.
 
@@ -97,7 +119,15 @@ def calculate_pricing(route_id: str, base_freight: float):
     route_id : str
         The route identifier from the Route Agent.
     base_freight : float
-        The base freight cost from the Route Agent.
+        The base freight cost from the Route Agent. This is
+        the per-container rate for the lane.
+    containers : int, default 1
+        Number of containers in the shipment. The cost
+        components are per-container rates, so they are
+        multiplied by this value to give the cost of the
+        whole shipment. Defaults to 1 so an existing caller
+        that does not pass a container count keeps the
+        previous per-container behaviour.
 
     Returns
     -------
@@ -115,6 +145,48 @@ def calculate_pricing(route_id: str, base_freight: float):
         if base_freight is None or base_freight < 0:
             raise ValueError(
                 "base_freight must be a non-negative number."
+            )
+
+        # -----------------------------------------------
+        # VALIDATE CONTAINERS
+        # -----------------------------------------------
+        # A container count is a whole number. Rejecting a
+        # fractional value is safer than silently truncating
+        # it, which would quote a different shipment than
+        # the caller asked for.
+
+        if containers is None:
+
+            containers = 1
+
+        if isinstance(containers, bool):
+
+            raise ValueError(
+                "Number of containers must be a whole "
+                "number of at least 1."
+            )
+
+        try:
+
+            container_count = int(containers)
+
+            if container_count != float(containers):
+
+                raise ValueError
+
+        except (TypeError, ValueError):
+
+            raise ValueError(
+                "Number of containers must be a whole "
+                "number of at least 1."
+            )
+
+        containers = container_count
+
+        if containers < 1:
+            raise ValueError(
+                "Number of containers must be at "
+                "least 1."
             )
 
         base_freight = float(base_freight)
@@ -171,18 +243,27 @@ def calculate_pricing(route_id: str, base_freight: float):
 
         # -----------------------------------------------
         # OPERATING COST FORMULA
+        #
+        # The components are per-container rates, so the
+        # shipment operating cost is the per-container sum
+        # multiplied by the container count.
+        #
         # operating_cost =
-        #     base_freight
-        #     + fuel_surcharge
-        #     + port_charge
-        #     + risk_surcharge
+        #     (base_freight
+        #      + fuel_surcharge
+        #      + port_charge
+        #      + risk_surcharge) * containers
         # -----------------------------------------------
 
-        operating_cost = (
+        per_container_operating_cost = (
             base_freight
             + fuel_surcharge
             + port_charge
             + risk_surcharge
+        )
+
+        operating_cost = (
+            per_container_operating_cost * containers
         )
 
         # -----------------------------------------------
@@ -201,10 +282,25 @@ def calculate_pricing(route_id: str, base_freight: float):
             "status": "success",
             "route_id": route_id_clean,
             "pricing_id": str(record["pricing_id"]),
-            "base_freight_usd": round(base_freight, 2),
-            "fuel_surcharge_usd": round(fuel_surcharge, 2),
-            "port_charge_usd": round(port_charge, 2),
-            "risk_surcharge_usd": round(risk_surcharge, 2),
+            "containers": containers,
+            "base_freight_usd": round(
+                base_freight * containers, 2
+            ),
+            "fuel_surcharge_usd": round(
+                fuel_surcharge * containers, 2
+            ),
+            "port_charge_usd": round(
+                port_charge * containers, 2
+            ),
+            "risk_surcharge_usd": round(
+                risk_surcharge * containers, 2
+            ),
+            "base_freight_per_container_usd": round(
+                base_freight, 2
+            ),
+            "operating_cost_per_container_usd": round(
+                per_container_operating_cost, 2
+            ),
             "demand_factor": round(demand_factor, 2),
             "target_margin_percent": round(target_margin, 2),
             "operating_cost_usd": round(operating_cost, 2),

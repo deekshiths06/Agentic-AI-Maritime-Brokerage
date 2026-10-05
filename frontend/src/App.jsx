@@ -7,6 +7,10 @@ import React, {
 
 import MaritimeRouteMap from "./components/MaritimeRouteMap.jsx";
 import MapErrorBoundary from "./components/MapErrorBoundary.jsx";
+import CustomsComplianceCard, {
+  CustomsStatusBadge,
+} from "./components/CustomsComplianceCard.jsx";
+import AssistantWidget from "./components/AssistantWidget.jsx";
 import { alternativeColorFor } from "./utils/maritimeGeometry";
 
 // ==========================================
@@ -839,6 +843,39 @@ function App() {
     useState("");
 
   // ==========================================
+  // CUSTOMS STATE (CUSTOMS AGENT)
+  // ==========================================
+  // User  -> `customs` / `customsLoading` drive the
+  //          Customs Compliance card on the Route
+  //          Intelligence results page.
+  // Admin -> `adminCustoms*` drive the read-only
+  //          Customs Management view.
+  // No customs rule, status or percentage is
+  // calculated anywhere in this file; everything is
+  // returned by the Customs Agent.
+
+  const [customs, setCustoms] = useState(null);
+  const [customsLoading, setCustomsLoading] = useState(false);
+
+  const [adminCustoms, setAdminCustoms] = useState([]);
+  const [adminCustomsTotal, setAdminCustomsTotal] =
+    useState(0);
+  const [adminCustomsSummary, setAdminCustomsSummary] =
+    useState(null);
+  const [adminCustomsFilters, setAdminCustomsFilters] =
+    useState(null);
+  const [adminCustomsStatusFilter, setAdminCustomsStatusFilter] =
+    useState("");
+  const [adminCustomsCargoFilter, setAdminCustomsCargoFilter] =
+    useState("");
+  const [adminCustomsSearch, setAdminCustomsSearch] =
+    useState("");
+  const [adminCustomsLoading, setAdminCustomsLoading] =
+    useState(false);
+  const [adminCustomsError, setAdminCustomsError] =
+    useState("");
+
+  // ==========================================
   // LOGIN CHECK
   // The saved user, initial view and active nav
   // are derived once at mount from localStorage
@@ -933,6 +970,7 @@ function App() {
     setActiveNav("Routes");
     setResult(null);
     setWeather(null);
+    setCustoms(null);
     setError("");
     setAcceptError("");
     setAcceptResult(null);
@@ -1473,6 +1511,93 @@ function App() {
   };
 
   // ==========================================
+  // LOAD ROUTE CUSTOMS (CUSTOMS AGENT)
+  // ==========================================
+  // Independent, non-blocking intelligence for the
+  // recommended route, mirroring the Weather Agent.
+  // The Customs Agent matches on origin +
+  // destination + cargo type + cargo subtype; the
+  // response is rendered as-is by the
+  // CustomsComplianceCard, so no customs value is
+  // derived here.
+
+  const loadRouteCustoms = async (routeData) => {
+    const origin = String(
+      routeData?.origin || ""
+    ).trim();
+    const destination = String(
+      routeData?.destination || ""
+    ).trim();
+    const cargoType = String(
+      routeData?.cargo_type || ""
+    ).trim();
+    const cargoSubtype = String(
+      routeData?.cargo_subtype || ""
+    ).trim();
+
+    if (
+      !origin ||
+      !destination ||
+      !cargoType ||
+      !cargoSubtype
+    ) {
+      setCustoms(null);
+      setCustomsLoading(false);
+      return;
+    }
+
+    setCustomsLoading(true);
+
+    try {
+      const response = await fetch(
+        "/api/customs/analyze",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+
+          body: JSON.stringify({
+            route_id: String(
+              routeData?.recommended_route
+                ?.route_id || ""
+            ).trim(),
+            origin,
+            destination,
+            cargo_type: cargoType,
+            cargo_subtype: cargoSubtype,
+          }),
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Unable to analyze customs requirements for this shipment."
+        );
+      }
+
+      setCustoms(data?.customs || null);
+    } catch (err) {
+      // Fail-safe: the customs module is additional
+      // intelligence, so a failure is logged and the
+      // card falls back to its safe "Customs Data
+      // Unavailable" state.
+      console.error("Customs analysis error:", err);
+
+      setCustoms(null);
+    } finally {
+      setCustomsLoading(false);
+    }
+  };
+
+  // ==========================================
   // ANALYZE ROUTE
   // ==========================================
 
@@ -1482,6 +1607,7 @@ function App() {
     setError("");
     setResult(null);
     setWeather(null);
+    setCustoms(null);
     setQuotation(null);
     setQuotationError("");
     setQuotationSuccess("");
@@ -1581,6 +1707,10 @@ function App() {
       // Weather Agent: independent, non-blocking
       // intelligence for the recommended route.
       loadRouteWeather(data);
+
+      // Customs Agent: independent, non-blocking
+      // customs intelligence for the same shipment.
+      loadRouteCustoms(data);
     } catch (err) {
       console.error("Route analysis error:", err);
 
@@ -1606,6 +1736,7 @@ function App() {
     setError("");
     setResult(null);
     setWeather(null);
+    setCustoms(null);
     setQuotation(null);
     setQuotationError("");
     setQuotationSuccess("");
@@ -1713,6 +1844,10 @@ function App() {
       // intelligence, so the weather is already resolved when
       // the user returns to the results view.
       loadRouteWeather(data);
+
+      // Customs Agent: same independent, non-blocking
+      // behaviour for customs requirements.
+      loadRouteCustoms(data);
     } catch (err) {
       console.error("Route map analysis error:", err);
 
@@ -2622,6 +2757,119 @@ function App() {
   };
 
   // ==========================================
+  // ADMIN CUSTOMS (CUSTOMS AGENT)
+  // ==========================================
+  // Read-only monitoring of the Customs dataset.
+  // The backend endpoint is already protected by
+  // require_admin, so a non-admin token returns 403
+  // and is surfaced as a normal error message. The
+  // view never writes to the customs dataset.
+
+  const buildAdminCustomsParams = () => {
+    const params = new URLSearchParams();
+
+    if (adminCustomsStatusFilter) {
+      params.set(
+        "customs_status",
+        adminCustomsStatusFilter
+      );
+    }
+
+    if (adminCustomsCargoFilter) {
+      params.set(
+        "cargo_type",
+        adminCustomsCargoFilter
+      );
+    }
+
+    if (adminCustomsSearch.trim()) {
+      params.set(
+        "search",
+        adminCustomsSearch.trim()
+      );
+    }
+
+    params.set("limit", "150");
+
+    return params;
+  };
+
+  const loadAdminCustoms = async () => {
+    setAdminCustomsLoading(true);
+    setAdminCustomsError("");
+
+    try {
+      const params = buildAdminCustomsParams();
+
+      const response = await adminFetch(
+        `/api/admin/customs?${params.toString()}`
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load customs data."
+        );
+      }
+
+      setAdminCustoms(data?.customs || []);
+      setAdminCustomsTotal(
+        Number(data?.total) || 0
+      );
+      setAdminCustomsSummary(
+        data?.summary || null
+      );
+      setAdminCustomsFilters(
+        data?.filters || null
+      );
+    } catch (err) {
+      console.error(
+        "Admin customs loading error:",
+        err
+      );
+
+      setAdminCustoms([]);
+      setAdminCustomsTotal(0);
+      setAdminCustomsError(
+        err.message ||
+          "Unable to load customs data."
+      );
+    } finally {
+      setAdminCustomsLoading(false);
+    }
+  };
+
+  const handleAdminCustomsStatusFilter = (value) => {
+    setAdminCustomsStatusFilter(value);
+    loadAdminCustoms();
+  };
+
+  const handleAdminCustomsCargoFilter = (value) => {
+    setAdminCustomsCargoFilter(value);
+    loadAdminCustoms();
+  };
+
+  // The current customs list is refreshed when the
+  // search changes.
+  useEffect(() => {
+    if (activeNav !== "Customs Management") {
+      return;
+    }
+
+    const timer = setTimeout(loadAdminCustoms, 350);
+
+    return () => clearTimeout(timer);
+  // adminCustomsSearch is the only meaningful trigger
+  // for the debounce; the loaders are intentionally
+  // omitted from the dependency list.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminCustomsSearch, activeNav]);
+
+  // ==========================================
   // USER FEEDBACK
   // ==========================================
 
@@ -3192,6 +3440,14 @@ function App() {
       setView("admin-activity");
       setError("");
       loadAdminActivity();
+      return;
+    }
+
+    if (item === "Customs Management") {
+      setActiveNav("Customs Management");
+      setView("admin-customs");
+      setError("");
+      loadAdminCustoms();
       return;
     }
 
@@ -4314,6 +4570,18 @@ function App() {
             <WeatherAnalysisCard
               weather={weather}
               loading={weatherLoading}
+              route={recommendedRoute}
+            />
+          </div>
+        )}
+
+        {/* CUSTOMS COMPLIANCE (CUSTOMS AGENT) */}
+
+        {recommendedRoute && (
+          <div className="customs-section">
+            <CustomsComplianceCard
+              customs={customs}
+              loading={customsLoading}
               route={recommendedRoute}
             />
           </div>
@@ -9414,6 +9682,408 @@ function App() {
   };
 
   // ==========================================
+  // ADMIN CUSTOMS MANAGEMENT PAGE
+  // ==========================================
+  // Read-only monitoring of the Customs Agent dataset.
+  // Every status, flag and percentage comes from
+  // GET /api/admin/customs; this page only filters
+  // and renders. No customs rule can be edited here.
+  // ==========================================
+
+  const renderAdminCustoms = () => {
+    const summary = adminCustomsSummary || {};
+
+    return (
+      <section className="results-screen page-view">
+
+        <div className="results-header">
+
+          <div>
+
+            <button
+              className="back-button"
+              type="button"
+              onClick={() =>
+                handleNavClick("Admin Dashboard")
+              }
+            >
+              ← Back to Admin Dashboard
+            </button>
+
+            <span className="section-label">
+              ADMIN
+            </span>
+
+            <h1>
+              Customs Management
+            </h1>
+
+            <p>
+              Customs Agent dataset for platform
+              monitoring. Every record is matched on
+              origin, destination, cargo type and cargo
+              subtype. This view is read-only: it filters
+              and monitors the dataset, and cannot change
+              any customs requirement.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* ERROR */}
+
+        {adminCustomsError && (
+          <div className="error-message">
+            {adminCustomsError}
+          </div>
+        )}
+
+        {/* SUMMARY */}
+
+        {summary.total_records != null && (
+          <div className="customs-admin-summary">
+
+            <div className="customs-admin-summary-card">
+              <span>
+                Total Records
+              </span>
+              <strong>
+                {Number(
+                  summary.total_records
+                ).toLocaleString()}
+              </strong>
+            </div>
+
+            <div className="customs-admin-summary-card">
+              <span>
+                Valid
+              </span>
+              <strong>
+                {Number(
+                  summary.valid_records || 0
+                ).toLocaleString()}
+              </strong>
+            </div>
+
+            <div className="customs-admin-summary-card">
+              <span>
+                Warning
+              </span>
+              <strong>
+                {Number(
+                  summary.warning_records || 0
+                ).toLocaleString()}
+              </strong>
+            </div>
+
+            <div className="customs-admin-summary-card">
+              <span>
+                Action Required
+              </span>
+              <strong>
+                {Number(
+                  summary.action_required_records ||
+                    0
+                ).toLocaleString()}
+              </strong>
+            </div>
+
+          </div>
+        )}
+
+        {/* FILTERS */}
+
+        <div className="admin-users-toolbar">
+
+          <div className="admin-search-box customs-admin-filters">
+
+            <select
+              value={adminCustomsStatusFilter}
+              onChange={(e) =>
+                handleAdminCustomsStatusFilter(
+                  e.target.value
+                )
+              }
+              className="admin-filter-select"
+              aria-label="Filter customs records by status"
+            >
+              <option value="">
+                All Statuses
+              </option>
+              {(
+                adminCustomsFilters
+                  ?.customs_statuses || []
+              ).map((s) => (
+                <option value={s} key={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={adminCustomsCargoFilter}
+              onChange={(e) =>
+                handleAdminCustomsCargoFilter(
+                  e.target.value
+                )
+              }
+              className="admin-filter-select"
+              aria-label="Filter customs records by cargo type"
+            >
+              <option value="">
+                All Cargo Types
+              </option>
+              {(
+                adminCustomsFilters
+                  ?.cargo_types || []
+              ).map((c) => (
+                <option value={c} key={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="text"
+              className="admin-search-input"
+              value={adminCustomsSearch}
+              onChange={(e) =>
+                setAdminCustomsSearch(
+                  e.target.value
+                )
+              }
+              placeholder="Search customs ID, route, port or cargo"
+              aria-label="Search customs records"
+            />
+
+          </div>
+
+          <span className="admin-users-count">
+            {adminCustoms.length} of{" "}
+            {adminCustomsTotal.toLocaleString()}{" "}
+            record{adminCustomsTotal !== 1 ? "s" : ""}
+          </span>
+
+        </div>
+
+        {/* LOADING */}
+
+        {adminCustomsLoading && (
+          <div className="loading-message">
+            <span className="loading-spinner"></span>
+            Loading customs data...
+          </div>
+        )}
+
+        {/* EMPTY */}
+
+        {!adminCustomsLoading &&
+          !adminCustomsError &&
+          adminCustoms.length === 0 && (
+            <div className="history-empty">
+
+              <div className="history-empty-icon">
+                ⚖
+              </div>
+
+              <h3>
+                No customs records found.
+              </h3>
+
+              <p>
+                No customs record matches the current
+                filters. Clear a filter to widen the
+                search.
+              </p>
+
+            </div>
+          )}
+
+        {/* CUSTOMS TABLE */}
+
+        {!adminCustomsLoading &&
+          !adminCustomsError &&
+          adminCustoms.length > 0 && (
+            <div className="comparison-section">
+
+              <p className="customs-admin-basis">
+                <strong>
+                  Compliance basis:
+                </strong>{" "}
+                required controls out of the 5 tracked
+                customs controls (HS Code, Commercial
+                Invoice, Packing List, Certificate of
+                Origin, Restricted Cargo) for this route
+                and cargo combination. The user-facing
+                Customs Compliance card instead reports
+                satisfied controls over the controls that
+                actually apply to the shipment.{" "}
+                {summary.invalid_records > 0
+                  ? `${summary.invalid_records} dataset record(s) were skipped as invalid.`
+                  : "All dataset records passed validation."}
+              </p>
+
+              <div className="table-wrapper">
+
+                <table className="route-table admin-table">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>Customs ID</th>
+                      <th>Route</th>
+                      <th>Origin</th>
+                      <th>Destination</th>
+                      <th>Cargo</th>
+                      <th>HS Code</th>
+                      <th>Invoice</th>
+                      <th>Packing List</th>
+                      <th>Certificate of Origin</th>
+                      <th>Restricted</th>
+                      <th>Status</th>
+                      <th>Compliance</th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {adminCustoms.map((item) => (
+                      <tr
+                        key={item.customs_id}
+                        className="history-row"
+                      >
+
+                        <td>
+                          <strong className="history-route-id">
+                            {item.customs_id || "-"}
+                          </strong>
+                        </td>
+
+                        <td>
+                          {item.route_id || "-"}
+                        </td>
+
+                        <td>
+                          {item.origin || "-"}
+                        </td>
+
+                        <td>
+                          {item.destination || "-"}
+                        </td>
+
+                        <td>
+                          {[
+                            item.cargo_type,
+                            item.cargo_subtype,
+                          ]
+                            .filter(Boolean)
+                            .join(" / ") || "-"}
+                        </td>
+
+                        <td>
+                          <span
+                            className={`customs-flag ${
+                              item.hs_code_required
+                                ? "customs-flag-yes"
+                                : "customs-flag-no"
+                            }`}
+                          >
+                            {item.hs_code_required
+                              ? "Required"
+                              : "Not Required"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`customs-flag ${
+                              item.commercial_invoice
+                                ? "customs-flag-yes"
+                                : "customs-flag-no"
+                            }`}
+                          >
+                            {item.commercial_invoice
+                              ? "Required"
+                              : "Not Required"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`customs-flag ${
+                              item.packing_list
+                                ? "customs-flag-yes"
+                                : "customs-flag-no"
+                            }`}
+                          >
+                            {item.packing_list
+                              ? "Required"
+                              : "Not Required"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`customs-flag ${
+                              item.certificate_of_origin
+                                ? "customs-flag-yes"
+                                : "customs-flag-no"
+                            }`}
+                          >
+                            {item.certificate_of_origin
+                              ? "Required"
+                              : "Not Required"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`customs-flag ${
+                              item.restricted
+                                ? "customs-flag-yes"
+                                : "customs-flag-no"
+                            }`}
+                          >
+                            {item.restricted
+                              ? "Restricted"
+                              : "Not Restricted"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <CustomsStatusBadge
+                            status={item.customs_status}
+                            small
+                          />
+                        </td>
+
+                        <td>
+                          {formatPercent(
+                            item.compliance_percent
+                          )}
+                        </td>
+
+                      </tr>
+                    ))}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            </div>
+          )}
+
+      </section>
+    );
+  };
+
+  // ==========================================
   // USER FEEDBACK PAGE
   // ==========================================
 
@@ -10006,6 +10676,26 @@ function App() {
 
               <button
                 className={
+                  activeNav === "Customs Management"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Customs Management")
+                }
+              >
+
+                <span className="nav-icon">
+                  ⚖
+                </span>
+
+                Customs Management
+
+              </button>
+
+              <button
+                className={
                   activeNav === "User Feedback"
                     ? "nav-item active"
                     : "nav-item"
@@ -10412,6 +11102,9 @@ function App() {
           {isAdmin && view === "admin-activity" &&
             renderAdminActivity()}
 
+          {isAdmin && view === "admin-customs" &&
+            renderAdminCustoms()}
+
           {isAdmin && view === "admin-quotations" &&
             renderAdminQuotations()}
 
@@ -10421,6 +11114,38 @@ function App() {
           </div>
 
                 </div>
+
+      {/* MARITIME AI ASSISTANT
+          The same floating chat panel serves both
+          dashboards, so the two assistants can never
+          drift apart visually or behaviourally.
+
+          The backend endpoints stay the real security
+          boundary: /api/assistant/* requires a valid
+          user token and /api/admin/assistant/* requires
+          require_admin. The `isAdmin` conditions below
+          only decide which panel is rendered - they are
+          a usability choice, never an authorization one.
+
+          `getAuthHeaders` is the existing token helper,
+          so the widget reuses the current login session
+          and never handles a user_id itself. */}
+
+      {!isAdmin && view === "home" && (
+        <AssistantWidget
+          key="user-assistant"
+          scope="user"
+          getAuthHeaders={getAuthHeaders}
+        />
+      )}
+
+      {isAdmin && view === "admin-home" && (
+        <AssistantWidget
+          key="admin-assistant"
+          scope="admin"
+          getAuthHeaders={getAuthHeaders}
+        />
+      )}
 
       </main>
 

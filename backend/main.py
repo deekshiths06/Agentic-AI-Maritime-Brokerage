@@ -8,12 +8,18 @@ import jwt
 import pymongo
 import re
 import os
+import secrets
 import logging
 from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 
-from app.models import RouteRequest, WeatherAnalyzeRequest
+from app.models import (
+    RouteRequest,
+    WeatherAnalyzeRequest,
+    CustomsCheckRequest,
+    AssistantRequest
+)
 from app.agents.route_agent import analyze_route
 from app.agents.quotation_service import (
     generate_quotation
@@ -24,12 +30,45 @@ from app.agents.weather_agent import (
     get_weather_summary,
     weather_for_route
 )
+from app.agents.customs_agent import (
+    analyze_customs,
+    get_customs_summary,
+    list_customs_records
+)
+from app.agents.assistant_agent import (
+    answer_user_question,
+    answer_admin_question
+)
+from app.services.gemini_service import (
+    generate_customs_advisory,
+    generate_assistant_reply,
+    get_gemini_configuration
+)
+from app.services.project_context import (
+    build_project_knowledge,
+    build_agent_reference
+)
 from app.services.ais_service import (
     fetch_ais_vessels,
 )
 
 
 logger = logging.getLogger("uvicorn.error")
+
+
+# ============================================================
+# DATASET PATHS
+# ============================================================
+# Resolved from this file's own location so the datasets are
+# found no matter which directory the backend was started
+# from (`cd backend` or the project root). The dataset files
+# themselves stay exactly where they are.
+
+APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
+
+ROUTES_CSV_PATH = os.path.join(APP_DIR, "routes.csv")
+
+PRICING_CSV_PATH = os.path.join(APP_DIR, "data", "pricing.csv")
 
 
 # ============================================================
@@ -138,16 +177,19 @@ app.add_middleware(
 #
 # Local development falls back to a default local MongoDB.
 # Create a backend/.env file to override these values.
+#
+# A blank or whitespace-only value is treated as "not set",
+# because an empty .env entry overrides a default fallback.
 # ============================================================
 
-MONGO_URI = os.getenv(
-    "MONGO_URI",
-    "mongodb://127.0.0.1:27017/"
+MONGO_URI = (
+    os.getenv("MONGO_URI", "").strip()
+    or "mongodb://127.0.0.1:27017/"
 )
 
-MONGO_DATABASE = os.getenv(
-    "MONGO_DATABASE",
-    "maritime_brokerage"
+MONGO_DATABASE = (
+    os.getenv("MONGO_DATABASE", "").strip()
+    or "maritime_brokerage"
 )
 
 client = MongoClient(MONGO_URI)
@@ -190,28 +232,125 @@ SHIPMENT_STATUS_FLOW = [
 # The admin account is seeded by the backend on startup and
 # is never created through the public registration form.
 #
-# Safe defaults are provided for development. Override them
-# in backend/.env for production or a real deployment.
+# SECURITY: no secret has a built-in default value in the
+# source code. A committed fallback secret is a real key:
+# anyone with the repository can forge tokens signed with it.
+# Every secret below is read from the environment only.
+#
+# Create backend/.env for local development (see
+# backend/.env.example) and set real secrets in the deployment
+# environment for production. Nothing is ever printed in logs.
 # ============================================================
 
-JWT_SECRET = os.getenv(
-    "JWT_SECRET",
-    "maritime-ai-dev-secret-key-2024"
-)
+APP_ENVIRONMENT = os.getenv(
+    "APP_ENVIRONMENT",
+    "development"
+).strip().lower()
+
+# Treat any non-development value as production-strict.
+IS_PRODUCTION = APP_ENVIRONMENT not in {
+    "development", "dev", "local", "test"
+}
 
 JWT_ALGORITHM = "HS256"
 
 JWT_EXPIRY_HOURS = 24
 
-ADMIN_EMAIL = os.getenv(
-    "ADMIN_EMAIL",
-    "admin@maritime.ai"
+
+def _read_secret(
+    env_name: str,
+    production_message: str,
+    development_message: str
+):
+    """
+    Read a secret from the environment with NO hardcoded
+    fallback. Returns (value, is_provisional).
+
+    A provisional value is a randomly generated secret used
+    only so development can run without configuration. It is
+    never a known constant and never logged.
+    """
+
+    value = os.getenv(env_name, "").strip()
+
+    if value:
+
+        return value, False
+
+    if IS_PRODUCTION:
+
+        raise RuntimeError(
+            production_message
+        )
+
+    # Development without configuration: fail safe, not open.
+    logger.warning(
+        development_message
+    )
+
+    return secrets.token_urlsafe(64), True
+
+
+JWT_SECRET, JWT_SECRET_IS_PROVISIONAL = _read_secret(
+    "JWT_SECRET",
+    production_message=(
+        "JWT_SECRET is not set. Refusing to start in "
+        f"{APP_ENVIRONMENT!r} mode because a hardcoded "
+        "fallback would let anyone forge authentication "
+        "tokens. Set the JWT_SECRET environment variable "
+        "to a long random value."
+    ),
+    development_message=(
+        "JWT_SECRET is not set. Generating a random "
+        "development-only signing key for this process. All "
+        "existing sessions will be invalidated when the "
+        "server restarts. Set JWT_SECRET in backend/.env to "
+        "keep sessions across restarts."
+    )
 )
 
+# The admin login is only seeded when both credentials are
+# supplied by the environment. Without them the application
+# still starts in development, but no admin account is
+# created, so there is no default password to discover.
+ADMIN_EMAIL = os.getenv(
+    "ADMIN_EMAIL", ""
+).strip()
+
 ADMIN_PASSWORD = os.getenv(
-    "ADMIN_PASSWORD",
-    "Admin@123"
+    "ADMIN_PASSWORD", ""
+).strip()
+
+ADMIN_CREDENTIALS_MISSING = not (
+    ADMIN_EMAIL and ADMIN_PASSWORD
 )
+
+if ADMIN_CREDENTIALS_MISSING:
+
+    missing = [
+        name
+        for name, value in (
+            ("ADMIN_EMAIL", ADMIN_EMAIL),
+            ("ADMIN_PASSWORD", ADMIN_PASSWORD)
+        )
+        if not value
+    ]
+
+    if IS_PRODUCTION:
+
+        raise RuntimeError(
+            f"Missing required admin configuration: "
+            f"{', '.join(missing)}. Refusing to start in "
+            f"{APP_ENVIRONMENT!r} mode. No default admin "
+            "credentials exist in the source code; set these "
+            "environment variables explicitly."
+        )
+
+    logger.warning(
+        f"Missing {', '.join(missing)}. The admin account "
+        "will not be seeded. Set these in backend/.env to "
+        "enable admin login."
+    )
 
 ADMIN_NAME = os.getenv(
     "ADMIN_NAME",
@@ -365,6 +504,19 @@ def require_admin(
 # ============================================================
 
 def seed_admin_account():
+
+    # ---------------------------------
+    # No credentials configured means
+    # no admin account is created. The
+    # configuration block already reports
+    # this, and fails hard in production.
+    # Never seed an account with a blank
+    # contact or password.
+    # ---------------------------------
+
+    if ADMIN_CREDENTIALS_MISSING:
+
+        return
 
     try:
 
@@ -753,6 +905,31 @@ def login_user(request: LoginRequest):
 
     token = create_access_token(user)
 
+    # --------------------------------------------------------
+    # LOGIN ACTIVITY MARKER
+    # A single timestamp written on the existing user record.
+    # This does NOT change the authentication flow: the token,
+    # the role, the response and the session behaviour are all
+    # exactly as before. The marker only lets the existing
+    # admin Login Activity view and the Admin AI Assistant
+    # answer "how many users signed in today". A failure here
+    # never blocks a successful login.
+    # --------------------------------------------------------
+
+    try:
+
+        users_collection.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"last_login": datetime.utcnow()}}
+        )
+
+    except Exception as marker_error:
+
+        logger.warning(
+            "Could not record login activity: %s",
+            marker_error
+        )
+
     return {
         "success": True,
         "message": "Login successful.",
@@ -777,9 +954,44 @@ def _history_document(result, request, quotation=None):
         result.get("recommended_route") or {}
     )
 
+    # -----------------------------------------------------
+    # ROUTE RECOMMENDATION REASONS
+    # -----------------------------------------------------
+    # The Route Agent returns the list of reasons that
+    # explain why the recommended route was chosen. It is
+    # persisted here so route history can explain the
+    # recommendation later, without recalculating anything.
+    # A quotation carries the same list, so either source
+    # is accepted. Nothing is invented: only reasons the
+    # Route Agent actually produced are stored.
+    # -----------------------------------------------------
+
+    route_reasons = []
+
+    if isinstance(quotation, dict):
+
+        route_reasons = quotation.get("reasons") or []
+
+    if not route_reasons:
+
+        route_reasons = result.get("reasons") or []
+
+    if not isinstance(route_reasons, list):
+
+        route_reasons = []
+
+    route_reasons = [
+        str(reason).strip()
+        for reason in route_reasons
+        if str(reason or "").strip()
+    ]
+
     doc = {
-        "user_id": request.user_id,
-        "user_contact": request.user_contact,
+        # Ownership is deliberately blank here. It is set
+        # by _save_route_history from the verified token,
+        # never from the request.
+        "user_id": "",
+        "user_contact": "",
         "origin": result.get(
             "origin", request.origin
         ),
@@ -813,6 +1025,7 @@ def _history_document(result, request, quotation=None):
         "route_score": recommended.get(
             "score"
         ),
+        "route_reasons": route_reasons,
         "total_available_routes": result.get(
             "total_available_routes", 0
         ),
@@ -822,9 +1035,31 @@ def _history_document(result, request, quotation=None):
     if quotation:
         pricing = quotation.get("pricing", {})
         margin = quotation.get("margin", {})
+
+        # -------------------------------------------------
+        # PRICING BREAKDOWN
+        # Every value the Pricing Agent produced is kept so
+        # the stored quotation matches the quotation that
+        # was shown to the customer.
+        # -------------------------------------------------
+
         doc["pricing"] = {
+            "containers": pricing.get("containers"),
             "base_freight_usd": pricing.get(
                 "base_freight_usd"
+            ),
+            "base_freight_per_container_usd":
+                pricing.get(
+                    "base_freight_per_container_usd"
+                ),
+            "fuel_surcharge_usd": pricing.get(
+                "fuel_surcharge_usd"
+            ),
+            "port_charge_usd": pricing.get(
+                "port_charge_usd"
+            ),
+            "risk_surcharge_usd": pricing.get(
+                "risk_surcharge_usd"
             ),
             "operating_cost_usd": pricing.get(
                 "operating_cost_usd"
@@ -846,6 +1081,9 @@ def _history_document(result, request, quotation=None):
             "expected_profit_usd": margin.get(
                 "expected_profit_usd"
             ),
+            "achieved_margin_percent": margin.get(
+                "achieved_margin_percent"
+            ),
         }
 
     return doc
@@ -859,32 +1097,44 @@ def _save_route_history(
         result, request, quotation
     )
 
-    # When a valid token is provided, the record is
-    # attributed to the authenticated user instead of
-    # trusting the user_id sent in the request body.
-    if authorization:
+    # -----------------------------------------------------
+    # OWNERSHIP COMES FROM THE VERIFIED TOKEN ONLY
+    # -----------------------------------------------------
+    # The identity stored on the record is taken from a
+    # valid backend-issued JWT. A `user_id` sent in the
+    # request body is never trusted for ownership, so a
+    # caller cannot write route history or a quotation into
+    # another user's account.
+    #
+    # With no token, or an invalid/expired one, no history
+    # is stored. An unauthenticated route analysis or
+    # quotation still returns its result to the caller; it
+    # simply is not persisted to anyone's history.
+    # -----------------------------------------------------
 
-        try:
+    document["user_id"] = ""
+    document["user_contact"] = ""
 
-            current = get_current_user(authorization)
-
-            document["user_id"] = current.get(
-                "user_id", document["user_id"]
-            )
-
-            document["user_contact"] = current.get(
-                "contact", document["user_contact"]
-            )
-
-        except HTTPException:
-
-            pass
-
-    # Only save history when it can be associated
-    # with a logged-in user.
-    if not document["user_id"]:
+    if not authorization:
 
         return None
+
+    try:
+
+        current = get_current_user(authorization)
+
+    except HTTPException:
+
+        return None
+
+    owner_id = str(current.get("user_id", "") or "").strip()
+
+    if not owner_id:
+
+        return None
+
+    document["user_id"] = owner_id
+    document["user_contact"] = current.get("contact", "")
 
     result = route_history_collection.insert_one(document)
 
@@ -953,6 +1203,19 @@ def _serialize_history_record(record):
             "transshipments"
         ),
         "route_score": record.get("route_score"),
+
+        # -------------------------------------------------
+        # ROUTE RECOMMENDATION REASONS
+        # Persisted by _history_document from the reasons
+        # the Route Agent produced. Older records have no
+        # stored reasons, so an empty list is returned and
+        # the caller explains the route without them rather
+        # than failing.
+        # -------------------------------------------------
+
+        "route_reasons": record.get(
+            "route_reasons", []
+        ) or [],
         "total_available_routes": record.get(
             "total_available_routes", 0
         ),
@@ -996,20 +1259,6 @@ def _serialize_history_record(record):
     }
 
 
-def _require_user_id(user_id):
-
-    owner_id = (user_id or "").strip()
-
-    if not owner_id:
-
-        raise HTTPException(
-            status_code=400,
-            detail="User identification is required."
-        )
-
-    return owner_id
-
-
 # ============================================================
 # ROUTE LOCATIONS
 # ============================================================
@@ -1020,7 +1269,7 @@ def get_locations():
     import pandas as pd
 
     df = pd.read_csv(
-        "app/routes.csv"
+        ROUTES_CSV_PATH
     )
 
     origins = sorted(
@@ -1131,7 +1380,7 @@ def get_route_network():
     import pandas as pd
 
     df = pd.read_csv(
-        "app/routes.csv"
+        ROUTES_CSV_PATH
     )
 
     df.columns = (
@@ -1352,7 +1601,7 @@ def get_cargo_subtypes(
     import pandas as pd
 
     df = pd.read_csv(
-        "app/routes.csv"
+        ROUTES_CSV_PATH
     )
 
     filters_provided = bool(
@@ -1652,6 +1901,177 @@ def get_weather_dataset_summary():
 
 
 # ============================================================
+# CUSTOMS COMPLIANCE (CUSTOMS AGENT)
+# ============================================================
+# The Customs Agent is an ADDITIONAL compliance module in the
+# existing pipeline:
+#
+#   Route Agent  -> Recommended Route
+#   Weather Agent-> Weather Risk
+#   Customs Agent-> Customs Compliance   <- this module
+#   Pricing Agent-> Cost
+#   Margin Agent -> Selling Price
+#
+# It reads backend/app/customs.csv, which is generated from
+# the EXISTING backend/app/routes.csv, so it reuses the
+# existing route ids and the existing cargo_type /
+# cargo_subtype values. It never selects a route, never
+# changes a route score and never touches pricing, margin,
+# quotations or shipments.
+#
+# A record is matched on
+#   ORIGIN + DESTINATION + CARGO TYPE + CARGO SUBTYPE
+# so two routes on the same lane carrying different cargo are
+# never confused with each other.
+#
+# The customs_status, the compliance percentage and the list
+# of missing documents are produced by deterministic logic in
+# the Customs Agent. Gemini only rewrites that structured
+# result as a readable advisory, and its absence never breaks
+# this endpoint.
+# ============================================================
+
+def _attach_customs_advisory(customs_result):
+
+    """
+    Add the advisory to a customs result.
+
+    The deterministic Customs Agent result is always returned.
+    Gemini is optional: any failure falls back to the
+    deterministic advisory text instead of raising.
+    """
+
+    try:
+
+        advisory = generate_customs_advisory(customs_result)
+
+        customs_result["advisory"] = advisory.get(
+            "advisory",
+            customs_result.get("advisory", "")
+        )
+
+        # The browser is told only WHETHER a written advisory was
+        # added. Which service produced it, whether it is
+        # configured, its model name and the reason it was
+        # skipped are all internal diagnostics and are never
+        # sent to the customer.
+
+        customs_result["advisory_included"] = bool(
+            advisory.get("advisory")
+            or customs_result.get("advisory")
+        )
+
+    except Exception as advisory_error:
+
+        # The explanation layer is optional intelligence and
+        # must never break the customs result.
+
+        logger.warning(
+            "Customs advisory layer error: %s",
+            advisory_error
+        )
+
+        customs_result["advisory_included"] = bool(
+            customs_result.get("advisory")
+        )
+
+    return customs_result
+
+
+@app.post(
+    "/api/customs/analyze",
+    summary="Analyze customs requirements for a shipment",
+    response_description=(
+        "The customs record matched on origin, destination, "
+        "cargo type and cargo subtype, the deterministic "
+        "compliance result, the customs status and the "
+        "advisory for this shipment."
+    )
+)
+def analyze_customs_route(request: CustomsCheckRequest):
+
+    if not request.has_shipment():
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "origin, destination, cargo_type and "
+                "cargo_subtype are all required to analyze "
+                "customs requirements."
+            )
+        )
+
+    try:
+
+        customs_result = analyze_customs(
+            origin=request.origin,
+            destination=request.destination,
+            cargo_type=request.cargo_type,
+            cargo_subtype=request.cargo_subtype,
+            route_id=request.route_id,
+            documents=request.documents
+        )
+
+    except Exception as error:
+
+        # The customs module is additional intelligence. It
+        # never breaks the surrounding application.
+        logger.warning(
+            "Customs analysis error: %s", error
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to analyze customs requirements "
+                   "for this shipment."
+        )
+
+    _attach_customs_advisory(customs_result)
+
+    # The dataset filename behind the answer is an internal
+    # implementation detail. The customer gets the plain
+    # language caveat instead, which says the same thing
+    # without naming a file.
+
+    customs_result.pop("data_source", None)
+
+    # -------------------------------------------------
+    # NOT AVAILABLE IS A NORMAL ANSWER, NOT AN ERROR
+    #
+    # A missing customs record, an unsupported cargo pair or
+    # an unreadable dataset all resolve to HTTP 200 with
+    # available=false, so Route Intelligence, quotations and
+    # shipments keep working unchanged.
+    # -------------------------------------------------
+
+    return {
+        "success": True,
+        "customs": customs_result
+    }
+
+
+@app.get(
+    "/api/customs/summary",
+    summary="Customs dataset coverage summary"
+)
+def get_customs_dataset_summary():
+
+    summary = get_customs_summary()
+
+    # The service name, model and key configuration are
+    # internal diagnostics. Only whether the optional
+    # explanation layer is available is customer relevant.
+
+    summary["explanation_available"] = bool(
+        get_gemini_configuration().get("configured")
+    )
+
+    summary.pop("gemini", None)
+
+    return summary
+
+
+# ============================================================
 # QUOTATION GENERATION
 # ============================================================
 
@@ -1754,44 +2174,31 @@ def api_generate_quotation(
 # ============================================================
 # ROUTE HISTORY
 # ============================================================
-# When a valid backend token is provided, the request is scoped
-# to the authenticated user's own history. A normal user cannot
-# view another user's records by altering query parameters.
-# For backward compatibility, requests without a token still
-# fall back to the previous user_id-based behaviour used by
-# existing clients.
+# Every route history endpoint requires a valid backend
+# token and is scoped to the authenticated user's OWN records.
+#
+# The identity is taken from the verified token only, using
+# the same `Depends(get_current_user)` pattern as the Maritime
+# Assistant. A `user_id` supplied by the client is never used
+# for ownership, so changing a query parameter or editing
+# localStorage cannot expose another user's records.
 # ============================================================
-
-def _resolve_identity(
-    user_id: str,
-    authorization: str = None
-):
-
-    if authorization:
-
-        try:
-
-            current = get_current_user(authorization)
-
-            return current.get("user_id")
-
-        except HTTPException:
-
-            # Invalid or expired token is treated as
-            # unauthenticated below.
-            pass
-
-    return _require_user_id(user_id)
-
 
 @app.get("/api/routes/history")
 def get_route_history(
-    user_id: str = "",
-    contact: str = "",
-    authorization: str = Header(None)
+    current_user: dict = Depends(get_current_user)
 ):
 
-    owner_id = _resolve_identity(user_id, authorization)
+    owner_id = str(
+        current_user.get("user_id", "") or ""
+    ).strip()
+
+    if not owner_id:
+
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication is required."
+        )
 
     records = (
         route_history_collection
@@ -1817,11 +2224,19 @@ def get_route_history(
 @app.delete("/api/routes/history/{record_id}")
 def delete_route_history(
     record_id: str,
-    user_id: str = "",
-    authorization: str = Header(None)
+    current_user: dict = Depends(get_current_user)
 ):
 
-    owner_id = _resolve_identity(user_id, authorization)
+    owner_id = str(
+        current_user.get("user_id", "") or ""
+    ).strip()
+
+    if not owner_id:
+
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication is required."
+        )
 
     try:
 
@@ -1834,8 +2249,9 @@ def delete_route_history(
             detail="The route history record is invalid."
         )
 
-    # Only the record that belongs to the current user
-    # can be deleted. routes.csv is never touched.
+    # Only the record that belongs to the authenticated user
+    # can be deleted. The ownership filter is applied in the
+    # database query, and routes.csv is never touched.
     result = route_history_collection.delete_one({
         "_id": record_object_id,
         "user_id": owner_id
@@ -1856,13 +2272,21 @@ def delete_route_history(
 
 @app.delete("/api/routes/history")
 def clear_route_history(
-    user_id: str = "",
-    authorization: str = Header(None)
+    current_user: dict = Depends(get_current_user)
 ):
 
-    owner_id = _resolve_identity(user_id, authorization)
+    owner_id = str(
+        current_user.get("user_id", "") or ""
+    ).strip()
 
-    # Only the current user's history is removed.
+    if not owner_id:
+
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication is required."
+        )
+
+    # Only the authenticated user's own history is removed.
     result = route_history_collection.delete_many({
         "user_id": owner_id
     })
@@ -1990,17 +2414,26 @@ def _serialize_shipment(shipment: dict) -> dict:
 # ============================================================
 # MY SHIPMENTS
 # ============================================================
-# Returns only the logged-in user's shipment records.
-# The token identity is authoritative when provided.
+# Returns only the authenticated user's own shipment records.
+# The identity comes from the verified token only, so a
+# client-supplied `user_id` cannot widen the result set.
 # ============================================================
 
 @app.get("/api/shipments")
 def get_my_shipments(
-    user_id: str = "",
-    authorization: str = Header(None)
+    current_user: dict = Depends(get_current_user)
 ):
 
-    owner_id = _resolve_identity(user_id, authorization)
+    owner_id = str(
+        current_user.get("user_id", "") or ""
+    ).strip()
+
+    if not owner_id:
+
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication is required."
+        )
 
     records = (
         shipments_collection
@@ -2021,18 +2454,28 @@ def get_my_shipments(
 # ============================================================
 # SHIPMENT DETAILS
 # ============================================================
-# A normal user may only open their own shipment. A missing
-# or foreign shipment returns a generic 404.
+# A user may only open their own shipment. The ownership
+# check compares the authenticated token's user against the
+# shipment's stored owner. A missing or foreign shipment
+# returns a generic 404 so shipment ids cannot be probed.
 # ============================================================
 
 @app.get("/api/shipments/{shipment_id}")
 def get_shipment_details(
     shipment_id: str,
-    user_id: str = "",
-    authorization: str = Header(None)
+    current_user: dict = Depends(get_current_user)
 ):
 
-    owner_id = _resolve_identity(user_id, authorization)
+    owner_id = str(
+        current_user.get("user_id", "") or ""
+    ).strip()
+
+    if not owner_id:
+
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication is required."
+        )
 
     shipment = shipments_collection.find_one({
         "shipment_id": shipment_id.strip()
@@ -3055,11 +3498,11 @@ def get_admin_pricing(
     try:
 
         pricing_df = pd.read_csv(
-            "app/data/pricing.csv"
+            PRICING_CSV_PATH
         )
 
         routes_df = pd.read_csv(
-            "app/routes.csv"
+            ROUTES_CSV_PATH
         )
 
     except Exception as error:
@@ -3186,4 +3629,851 @@ def get_admin_pricing(
         "success": True,
         "pricing": pricing_rows,
         "count": len(pricing_rows)
+    }
+
+
+# ============================================================
+# ADMIN - CUSTOMS MANAGEMENT
+# ============================================================
+# Read-only monitoring of the customs dataset that the Customs
+# Agent uses. The existing admin list + search + filter
+# architecture is reused: the same require_admin dependency,
+# the same list response shape (records + filters + summary)
+# and the same admin toolbar pattern used by /api/admin/pricing
+# and /api/admin/shipments.
+#
+# Every customs record is derived from the EXISTING routes
+# dataset, so no customs rule is created or editable through
+# this endpoint. A normal user cannot reach it: require_admin
+# blocks the request before the handler runs.
+# ============================================================
+
+@app.get(
+    "/api/admin/customs",
+    summary="List and filter customs records",
+    response_description=(
+        "Customs records with their route, cargo and "
+        "requirement values, the available filter options and "
+        "dataset status counters."
+    )
+)
+def get_admin_customs(
+    route_id: str = "",
+    origin: str = "",
+    destination: str = "",
+    cargo_type: str = "",
+    cargo_subtype: str = "",
+    customs_status: str = "",
+    restricted_cargo: str = "",
+    search: str = "",
+    limit: int = 0,
+    current_user: dict = Depends(require_admin)
+):
+
+    try:
+
+        result = list_customs_records(
+            route_id=route_id,
+            origin=origin,
+            destination=destination,
+            cargo_type=cargo_type,
+            cargo_subtype=cargo_subtype,
+            customs_status=customs_status,
+            restricted_cargo=restricted_cargo,
+            search=search,
+            limit=limit
+        )
+
+    except Exception as error:
+
+        logger.error(
+            "Unable to load customs records: %s", error
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to load customs records."
+        )
+
+    return {
+        "success": True,
+        **result
+    }
+
+
+# ============================================================
+# MARITIME AI ASSISTANT
+# ============================================================
+# A data-grounded assistant, NOT a generic maritime chatbot.
+#
+#   User question
+#        |
+#        v
+#   Intent detection (deterministic)
+#        |
+#        v
+#   EXISTING project data, already scoped to the
+#   authenticated user:
+#     Route Agent result   (route history collection)
+#     Weather Agent result (already stored on that record)
+#     Customs Agent result (run for the same 4-key match)
+#     Stored quotation     (pricing / margin on that record)
+#     Stored shipment      (own shipments only)
+#        |
+#        v
+#   Gemini explains those facts
+#        |
+#        v
+#   Natural language answer
+#
+# GEMINI NEVER INVENTS A VALUE
+# The model receives only the retrieved facts. The customs
+# status, compliance percentage, route score, weather risk
+# and quotation total are all produced by the deterministic
+# modules above and are never recalculated here. Gemini can
+# only phrase them.
+#
+# SECURITY
+# * Requires a valid token (get_current_user).
+# * Every record read is filtered by the token's user_id.
+#   Another user's shipment, quotation or route analysis is
+#   unreachable through this endpoint.
+# * Internal cost and margin fields are never placed in the
+#   fact set for a user, matching the existing UI where only
+#   the total quotation is shown.
+# * The API key is never sent to the browser.
+#
+# FAIL-SAFE
+# Gemini being unconfigured, unreachable or slow only changes
+# the tone of the answer. The deterministic answer, which is
+# written from the same retrieved facts, is always returned.
+# ============================================================
+
+ASSISTANT_MAX_MESSAGE_CHARS = 1000
+
+ASSISTANT_CONTEXT_LIMIT = 25
+
+
+@app.get(
+    "/api/assistant/suggestions",
+    summary="Suggested Maritime Assistant questions",
+    response_description=(
+        "A short list of starter questions, each one "
+        "answerable from the caller's own existing results."
+    )
+)
+def get_assistant_suggestions(
+    current_user: dict = Depends(get_current_user)
+):
+
+    return {
+        "success": True,
+        "suggestions": [
+            "Why was this route recommended?",
+            "What is my total quotation?",
+            "What customs documents are missing?",
+            "Why is my shipment risk medium?",
+            "What is my shipment status?",
+            "What weather risk does my route have?",
+            "How is my quotation calculated?",
+            "What documents do I need for customs clearance?",
+            "What cargo can I ship?",
+            "How do I get started on this platform?",
+        ],
+        "scope": (
+            "admin" if current_user.get("role") == "admin"
+            else "user"
+        ),
+    }
+
+
+def _safe_assistant_records(loader, default=""):
+    """
+    Run a project-data loader and degrade to `default`.
+
+    The assistant is an ADDITIONAL layer: a MongoDB or dataset
+    failure must produce a plain "no information" answer
+    rather than a 500 that would interrupt the dashboard.
+    """
+
+    try:
+
+        return loader()
+
+    except Exception as error:
+
+        logger.warning(
+            "Assistant data unavailable: %s", error
+        )
+
+        return default
+
+
+def _assistant_knowledge(
+    question,
+    scope="user",
+    intents=(),
+    status_flow=None
+):
+
+    """
+    Build the grounded project context for one question.
+
+    `app/services/project_context.py` is the single place
+    that describes how this codebase behaves, and it imports
+    the agents' own constants so a threshold, a control or a
+    formula can never drift from the code that applies it.
+
+    Two blocks are returned:
+
+      * `knowledge`   - what the platform is and how it
+                        works, for the questions that are
+                        about the implementation.
+      * `agent_reference` - the real rule or threshold behind
+                        a data topic, attached beside the
+                        stored value it explains.
+    """
+
+    try:
+
+        knowledge = build_project_knowledge(
+            question,
+            scope=scope,
+            status_flow=(
+                status_flow
+                if status_flow is not None
+                else SHIPMENT_STATUS_FLOW
+            )
+        )
+
+        reference = build_agent_reference(
+            question,
+            scope=scope,
+            status_flow=(
+                status_flow
+                if status_flow is not None
+                else SHIPMENT_STATUS_FLOW
+            ),
+            intents=intents
+        )
+
+    except Exception as error:
+
+        logger.warning(
+            "Assistant project knowledge unavailable: %s",
+            error
+        )
+
+        return {}
+
+    return {
+        "mode": knowledge.get("mode"),
+        "topics": knowledge.get("topics", []),
+        "admin_only": bool(knowledge.get("admin_only")),
+        "mirrors_stored_value": bool(
+            knowledge.get("mirrors_stored_value")
+        ),
+        "is_record_question": bool(
+            knowledge.get("is_record_question")
+        ),
+        "is_mechanism_question": bool(
+            knowledge.get("is_mechanism_question")
+        ),
+        "is_usage_question": bool(
+            knowledge.get("is_usage_question")
+        ),
+        "knowledge": {
+            "project_name": knowledge.get("project_name"),
+            "purpose": knowledge.get("purpose"),
+            "grounding_rule": knowledge.get("grounding_rule"),
+            "sections": knowledge.get("sections", {}),
+        },
+        "agent_reference": reference,
+        "deterministic_answer": knowledge.get(
+            "deterministic_answer"
+        ),
+    }
+
+
+@app.post(
+    "/api/assistant/chat",
+    summary="Ask the Maritime AI Assistant",
+    response_description=(
+        "A grounded natural language answer about the "
+        "authenticated user's own route, weather, customs, "
+        "quotation and shipment results, with the structured "
+        "facts the answer was built from."
+    )
+)
+def chat_with_maritime_assistant(
+    request: AssistantRequest,
+    current_user: dict = Depends(get_current_user)
+):
+
+    message = request.clean_message()
+
+    if not message:
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Please enter a question for the Maritime "
+                "AI Assistant."
+            )
+        )
+
+    # -------------------------------------------------
+    # SCOPE EVERY READ TO THE AUTHENTICATED USER
+    # -------------------------------------------------
+
+    owner_id = current_user.get("user_id", "")
+
+    requested_shipment_id = (
+        request.clean_shipment_id()
+    )
+
+    # A shipment reference supplied by the browser is only
+    # honoured when it belongs to this user. A foreign or
+    # unknown reference is dropped here, so it can never
+    # widen the search beyond this user's own records.
+    if requested_shipment_id:
+
+        owned = shipments_collection.find_one({
+            "shipment_id": requested_shipment_id,
+            "user_id": owner_id
+        })
+
+        if not owned:
+
+            requested_shipment_id = ""
+
+    requested_route_id = request.clean_route_id()
+
+    shipments = _safe_assistant_records(
+        lambda: list(
+            shipments_collection
+            .find({"user_id": owner_id})
+            .sort("created_at", -1)
+            .limit(ASSISTANT_CONTEXT_LIMIT)
+        ),
+        default=[]
+    )
+
+    history = _safe_assistant_records(
+        lambda: list(
+            route_history_collection
+            .find({"user_id": owner_id})
+            .sort("created_at", -1)
+            .limit(ASSISTANT_CONTEXT_LIMIT)
+        ),
+        default=[]
+    )
+
+    result = answer_user_question(
+        message,
+        shipments=[
+            _serialize_shipment(record)
+            for record in shipments
+        ],
+        history=[
+            _serialize_history_record(record)
+            for record in history
+        ],
+        analyze=analyze_customs,
+        status_flow=SHIPMENT_STATUS_FLOW,
+        shipment_id=requested_shipment_id,
+        route_id=requested_route_id,
+        knowledge_provider=_assistant_knowledge
+    )
+
+    # -------------------------------------------------
+    # REFUSAL SHORT-CIRCUIT
+    #
+    # An out-of-scope question is answered with the fixed
+    # refusal and never reaches the explanation service. That
+    # way the refused text is never sent anywhere, and the
+    # customer always receives the same plain message.
+    # -------------------------------------------------
+
+    if result.get("out_of_scope"):
+
+        return {
+            "success": True,
+            "scope": "user",
+            "question": message,
+            "answer": result["deterministic_answer"],
+            "answer_source": "refusal",
+            "explanation_available": False,
+            "out_of_scope": True,
+            "intents": result.get("intents", []),
+            "focus": result.get("focus", {}),
+            "facts": {},
+            "deterministic_answer": result[
+                "deterministic_answer"
+            ]
+        }
+
+    # -------------------------------------------------
+    # GEMINI EXPLAINS THE RETRIEVED FACTS
+    # -------------------------------------------------
+
+    project_block = (
+        (result.get("facts") or {}).get("project")
+    )
+
+    try:
+
+        explanation = generate_assistant_reply(
+            question=message,
+            facts=result["facts"],
+            deterministic_answer=result[
+                "deterministic_answer"
+            ],
+            scope="user",
+            project_knowledge=project_block
+        )
+
+    except Exception as explanation_error:
+
+        logger.warning(
+            "Assistant explanation layer error: %s",
+            explanation_error
+        )
+
+        explanation = {
+            "answer": result["deterministic_answer"],
+            "answer_source": "deterministic",
+            "explanation_available": False,
+        }
+
+    return {
+        "success": True,
+        "scope": "user",
+        "question": message,
+        "answer": explanation.get(
+            "answer",
+            result["deterministic_answer"]
+        ),
+        "answer_source": explanation.get(
+            "answer_source", "deterministic"
+        ),
+        "explanation_available": explanation.get(
+            "explanation_available", False
+        ),
+
+        # The explanation service's model name and the reason
+        # it was skipped are internal diagnostics and are
+        # deliberately not returned to the customer.
+
+        "intents": result.get("intents", []),
+        "focus": result.get("focus", {}),
+        "facts": result.get("facts", {}),
+        "deterministic_answer": result[
+            "deterministic_answer"
+        ]
+    }
+
+
+# ============================================================
+# ADMIN AI ASSISTANT
+# ============================================================
+# Same grounding architecture as the user assistant, reading
+# the SAME admin collections the existing admin dashboard
+# already reads. No new collection, no new dataset.
+#
+# ACCESS CONTROL
+# require_admin blocks the request before the handler runs, so
+# a normal user receives HTTP 403 and can never reach admin
+# counters, other users' records or system health through the
+# chatbot. The user assistant has no code path to these
+# endpoints either.
+#
+# NO SECRETS ARE EVER READ OR RETURNED
+# The health report contains availability states only
+# ("configured" / "not configured"). The Gemini key, the JWT
+# secret, passwords and the Mongo connection string are never
+# read into a fact and never leave the backend.
+# ============================================================
+
+def _collect_system_health():
+
+    """
+    Availability report for the existing subsystems.
+
+    Reports availability only. No key, secret, password or
+    connection string is read into this dictionary.
+    """
+
+    health = {
+        "database": "unavailable",
+        "routes_dataset": "unavailable",
+        "weather_dataset": "unavailable",
+        "customs_dataset": "unavailable",
+        "ais_provider": "not configured",
+        "ai_advisory_layer": "not configured",
+        "issues": [],
+    }
+
+    # -------------------------------------------------
+    # DATABASE
+    # -------------------------------------------------
+
+    try:
+
+        db.command("ping")
+
+        health["database"] = "connected"
+
+    except Exception as error:
+
+        health["database"] = "unavailable"
+
+        health["issues"].append(
+            "The database is not responding, so live "
+            "platform data cannot be read."
+        )
+
+        logger.warning(
+            "Assistant health check: database ping failed: %s",
+            error
+        )
+
+    # -------------------------------------------------
+    # DATASETS (reused through their existing agents)
+    # -------------------------------------------------
+
+    try:
+
+        get_locations()
+
+        health["routes_dataset"] = "available"
+
+    except Exception as error:
+
+        logger.warning(
+            "Assistant health check: routes dataset: %s",
+            error
+        )
+
+        health["issues"].append(
+            "The route dataset could not be read."
+        )
+
+    try:
+
+        weather_summary = get_weather_summary()
+
+        if weather_summary.get("available"):
+
+            health["weather_dataset"] = "available"
+
+        else:
+
+            health["weather_dataset"] = "unavailable"
+
+            health["issues"].append(
+                "The weather dataset could not be read."
+            )
+
+    except Exception as error:
+
+        logger.warning(
+            "Assistant health check: weather dataset: %s",
+            error
+        )
+
+        health["issues"].append(
+            "The weather dataset could not be read."
+        )
+
+    try:
+
+        customs_summary = get_customs_summary()
+
+        if customs_summary.get("available"):
+
+            health["customs_dataset"] = "available"
+
+        else:
+
+            health["customs_dataset"] = "unavailable"
+
+            health["issues"].append(
+                "The customs dataset could not be read."
+            )
+
+    except Exception as error:
+
+        logger.warning(
+            "Assistant health check: customs dataset: %s",
+            error
+        )
+
+        health["issues"].append(
+            "The customs dataset could not be read."
+        )
+
+    # -------------------------------------------------
+    # AIS PROVIDER
+    # Availability of the configured key only, never its
+    # value.
+    # -------------------------------------------------
+
+    if os.getenv("AIS_API_KEY", "").strip():
+
+        health["ais_provider"] = "configured"
+
+    # -------------------------------------------------
+    # AI ADVISORY LAYER
+    # -------------------------------------------------
+
+    gemini_configuration = get_gemini_configuration()
+
+    if gemini_configuration.get("available"):
+
+        health["ai_advisory_layer"] = "available"
+
+    else:
+
+        health["ai_advisory_layer"] = "not configured"
+
+        health["issues"].append(
+            "The AI advisory layer is not configured, so "
+            "answers fall back to the deterministic text."
+        )
+
+    return health
+
+
+@app.get(
+    "/api/admin/assistant/suggestions",
+    summary="Suggested Admin Assistant questions",
+    response_description=(
+        "A short list of starter administrator questions."
+    )
+)
+def get_admin_assistant_suggestions(
+    current_user: dict = Depends(require_admin)
+):
+
+    return {
+        "success": True,
+        "scope": "admin",
+        "suggestions": [
+            "How many active users are there?",
+            "How many active shipments are there?",
+            "Which shipments have customs warnings?",
+            "Show me recent quotation activity.",
+            "How many users logged in today?",
+            "Are there any system issues?",
+            "How do I approve a quotation?",
+            "How is a quotation calculated?",
+            "How does shipment tracking work?",
+            "How is a route recommended?",
+        ]
+    }
+
+
+def _count_users_logged_in_today():
+
+    """
+    Count distinct users that signed in today (UTC).
+
+    Uses the existing last_login marker written by the login
+    endpoint. No new collection and no login flow change.
+    """
+
+    try:
+
+        start_of_day = datetime.now(timezone.utc).replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0
+        )
+
+        return users_collection.count_documents({
+            "last_login": {"$gte": start_of_day}
+        })
+
+    except Exception as error:
+
+        logger.warning(
+            "Login activity count unavailable: %s", error
+        )
+
+        return 0
+
+
+@app.post(
+    "/api/admin/assistant/chat",
+    summary="Ask the Admin AI Assistant",
+    response_description=(
+        "A grounded natural language answer built from the "
+        "existing admin collections: user and shipment "
+        "counters, live shipment customs warnings, recent "
+        "quotation activity, login activity and system health."
+    )
+)
+def chat_with_admin_assistant(
+    request: AssistantRequest,
+    current_user: dict = Depends(require_admin)
+):
+
+    message = request.clean_message()
+
+    if not message:
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Please enter a question for the Admin "
+                "AI Assistant."
+            )
+        )
+
+    # -------------------------------------------------
+    # PLATFORM COUNTERS
+    #
+    # Reuses the exact counts of /api/admin/stats so the
+    # assistant can never report a different figure from the
+    # dashboard.
+    # -------------------------------------------------
+
+    admin_statistics = _safe_assistant_records(
+        lambda: get_admin_stats(current_user),
+        default={}
+    )
+
+    shipments = _safe_assistant_records(
+        lambda: list(
+            shipments_collection
+            .find({})
+            .sort("created_at", -1)
+            .limit(ASSISTANT_CONTEXT_LIMIT)
+        ),
+        default=[]
+    )
+
+    quotations = _safe_assistant_records(
+        lambda: list(
+            route_history_collection
+            .find({"pricing": {"$exists": True}})
+            .sort("created_at", -1)
+            .limit(ASSISTANT_CONTEXT_LIMIT)
+        ),
+        default=[]
+    )
+
+    customs_result = _safe_assistant_records(
+        lambda: list_customs_records(limit=0),
+        default={"customs": [], "summary": {}}
+    )
+
+    total_users = admin_statistics.get("total_users")
+
+    if total_users is None:
+
+        total_users = _safe_assistant_records(
+            lambda: users_collection.count_documents({}),
+            default=0
+        )
+
+    result = answer_admin_question(
+        message,
+        stats=admin_statistics,
+        shipments=[
+            _serialize_shipment(record)
+            for record in shipments
+        ],
+        quotations=[
+            _serialize_history_record(record)
+            for record in quotations
+        ],
+        customs_rows=customs_result.get("customs", []),
+        users_logged_in_today=(
+            _count_users_logged_in_today()
+        ),
+        users_total=total_users,
+        health=_collect_system_health(),
+        analyze=analyze_customs,
+        status_flow=SHIPMENT_STATUS_FLOW,
+        shipment_id=request.clean_shipment_id(),
+        route_id=request.clean_route_id(),
+        knowledge_provider=_assistant_knowledge
+    )
+
+    # An out-of-scope question is answered with the fixed
+    # refusal and never reaches the explanation service, for
+    # exactly the same reason as the user assistant.
+
+    if result.get("out_of_scope"):
+
+        return {
+            "success": True,
+            "scope": "admin",
+            "question": message,
+            "answer": result["deterministic_answer"],
+            "answer_source": "refusal",
+            "explanation_available": False,
+            "out_of_scope": True,
+            "intents": result.get("intents", []),
+            "focus": result.get("focus", {}),
+            "facts": {},
+            "deterministic_answer": result[
+                "deterministic_answer"
+            ]
+        }
+
+    project_block = (
+        (result.get("facts") or {}).get("project")
+    )
+
+    try:
+
+        explanation = generate_assistant_reply(
+            question=message,
+            facts=result["facts"],
+            deterministic_answer=result[
+                "deterministic_answer"
+            ],
+            scope="admin",
+            project_knowledge=project_block
+        )
+
+    except Exception as explanation_error:
+
+        logger.warning(
+            "Admin assistant explanation layer error: %s",
+            explanation_error
+        )
+
+        explanation = {
+            "answer": result["deterministic_answer"],
+            "answer_source": "deterministic",
+            "explanation_available": False,
+        }
+
+    return {
+        "success": True,
+        "scope": "admin",
+        "question": message,
+        "answer": explanation.get(
+            "answer",
+            result["deterministic_answer"]
+        ),
+        "answer_source": explanation.get(
+            "answer_source", "deterministic"
+        ),
+        "explanation_available": explanation.get(
+            "explanation_available", False
+        ),
+
+        # Internal diagnostics, not returned to the browser.
+        "intents": result.get("intents", []),
+        "focus": result.get("focus", {}),
+        "facts": result.get("facts", {}),
+        "deterministic_answer": result[
+            "deterministic_answer"
+        ]
     }

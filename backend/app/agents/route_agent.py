@@ -1,4 +1,22 @@
+import os
+
 import pandas as pd
+
+
+# =========================================================
+# DATASET PATH
+# =========================================================
+# Resolved from this module's own location so the dataset is
+# found no matter which directory the backend was started
+# from (for example `cd backend` or the project root).
+# The dataset itself stays exactly where it is:
+# backend/app/routes.csv
+
+ROUTES_CSV_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "..",
+    "routes.csv"
+)
 
 
 # =========================================================
@@ -87,7 +105,7 @@ CARGO_TYPE_MAPPING = {
 
 def load_routes():
 
-    df = pd.read_csv("app/routes.csv")
+    df = pd.read_csv(ROUTES_CSV_PATH)
 
     # -----------------------------------------------------
     # CLEAN COLUMN NAMES

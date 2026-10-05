@@ -77,14 +77,18 @@ def _get_base_freight(route_id: str) -> float:
 # =========================================================
 # ALTERNATIVE ROUTES WITH PRICING
 # =========================================================
-
 def _get_alternative_routes_with_pricing(
     route_result: dict,
-    recommended_route_id: str
+    recommended_route_id: str,
+    containers: int = 1
 ):
     """
     Build a list of alternative routes with their
     pricing data for comparison.
+
+    The container count is passed through so an alternative
+    route is costed for the same shipment size as the
+    recommended route.
     """
 
     all_routes = route_result.get("routes", [])
@@ -92,6 +96,7 @@ def _get_alternative_routes_with_pricing(
     alternatives = []
 
     for route in all_routes:
+
         rid = str(route.get("route_id", "")).strip()
 
         if rid == recommended_route_id:
@@ -100,7 +105,8 @@ def _get_alternative_routes_with_pricing(
         try:
             pricing = calculate_pricing(
                 rid,
-                _get_base_freight(rid)
+                _get_base_freight(rid),
+                containers
             )
         except Exception:
             pricing = None
@@ -219,7 +225,8 @@ def generate_quotation(
 
         pricing_result = calculate_pricing(
             recommended_route_id,
-            base_freight
+            base_freight,
+            containers
         )
 
         if pricing_result.get("status") != "success":
@@ -258,7 +265,8 @@ def generate_quotation(
         alternatives = (
             _get_alternative_routes_with_pricing(
                 route_result,
-                recommended_route_id
+                recommended_route_id,
+                containers
             )
         )
 
@@ -306,9 +314,14 @@ def generate_quotation(
             # -------------------------------------------
 
             "pricing": {
+                "containers": containers,
                 "base_freight_usd": pricing_result[
                     "base_freight_usd"
                 ],
+                "base_freight_per_container_usd":
+                    pricing_result[
+                        "base_freight_per_container_usd"
+                    ],
                 "fuel_surcharge_usd": pricing_result[
                     "fuel_surcharge_usd"
                 ],

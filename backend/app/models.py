@@ -39,9 +39,13 @@ class RouteRequest(BaseModel):
     )
 
     # -----------------------------------------------------
-    # OPTIONAL USER IDENTITY
-    # Sent by the frontend when a user is logged in.
-    # Used to associate route history with the user.
+    # LEGACY CLIENT IDENTITY FIELDS
+    # `user_id` / `user_contact` are still accepted so the
+    # existing frontend request shape does not change, but
+    # the backend NEVER uses them for authentication or
+    # ownership. Record ownership is taken only from the
+    # verified bearer token. A value sent here cannot grant
+    # access to another user's history or shipments.
     # -----------------------------------------------------
 
     user_id: str = ""
@@ -100,3 +104,104 @@ class WeatherAnalyzeRequest(BaseModel):
             self.origin.strip()
             and self.destination.strip()
         )
+
+
+# =========================================================
+# CUSTOMS CHECK REQUEST
+# =========================================================
+# Used by the Customs Agent. The shipment is identified the
+# same way the Route Agent result is: origin, destination,
+# cargo type and cargo subtype, plus the recommended
+# route_id when the Route Agent already produced one.
+#
+# `documents` is the shipper's confirmed document set,
+# keyed by customs control key. It is optional so a direct
+# API call works without it, and it never carries customs
+# RULES: a user can only declare which documents they hold,
+# never what is required.
+# =========================================================
+
+class CustomsCheckRequest(BaseModel):
+
+    route_id: str = ""
+
+    origin: str = ""
+
+    destination: str = ""
+
+    cargo_type: str = ""
+
+    cargo_subtype: str = ""
+
+    # -----------------------------------------------------
+    # DOCUMENT DECLARATION
+    # Keys used by the Customs Agent:
+    #   hs_code
+    #   commercial_invoice
+    #   packing_list
+    #   certificate_of_origin
+    #   restricted_cargo_permit
+    # Values are booleans. A missing key is treated as "on
+    # hand", so the checklist never blanks out by accident.
+    # -----------------------------------------------------
+
+    documents: dict = Field(default_factory=dict)
+
+    def has_shipment(self):
+
+        """True when the shipment can be matched."""
+
+        return bool(
+            self.origin.strip()
+            and self.destination.strip()
+            and self.cargo_type.strip()
+            and self.cargo_subtype.strip()
+        )
+
+
+# =========================================================
+# MARITIME ASSISTANT REQUEST
+# =========================================================
+# Used by the Maritime AI Assistant (user) and the Admin AI
+# Assistant (admin).
+#
+# `shipment_id` and `route_id` are OPTIONAL references. They
+# only tell the assistant which of the caller's OWN existing
+# records the question is about. They are never used to reach
+# a record the caller does not own: the backend scopes every
+# lookup to the authenticated principal first.
+#
+# The request carries no data values at all, so the assistant
+# can never be asked to accept a number, status or document
+# from the client.
+# =========================================================
+
+class AssistantRequest(BaseModel):
+
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000
+    )
+
+    shipment_id: str = ""
+
+    route_id: str = ""
+
+    def clean_message(self):
+
+        """Trimmed question text."""
+
+        return self.message.strip()
+
+    def clean_shipment_id(self):
+
+        """Trimmed shipment reference."""
+
+        return self.shipment_id.strip()
+
+    def clean_route_id(self):
+
+        """Trimmed route reference."""
+
+        return self.route_id.strip()
