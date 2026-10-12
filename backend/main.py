@@ -24,6 +24,9 @@ from app.agents.route_agent import analyze_route
 from app.agents.quotation_service import (
     generate_quotation
 )
+from app.agents.orchestrator import (
+    generate_freight_intelligence
+)
 from app.agents.weather_agent import (
     analyze_weather,
     analyze_routes_weather,
@@ -50,6 +53,9 @@ from app.services.project_context import (
 )
 from app.services.ais_service import (
     fetch_ais_vessels,
+)
+from app.services.executive_dashboard import (
+    build_executive_report
 )
 
 
@@ -154,15 +160,39 @@ def ensure_database_indexes():
 # ============================================================
 # CORS
 # ============================================================
+# Local development defaults to the Vite dev server. Production
+# deployments add their own frontend origins through
+# CORS_ORIGINS (a comma-separated list) or open the API to any
+# origin with ALLOW_ALL_ORIGINS=true. Both are read from the
+# environment so the backend can restage without a code change.
+# ============================================================
+
+cors_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+]
+
+env_cors_origins = (
+    os.getenv("CORS_ORIGINS", "").strip()
+)
+
+if env_cors_origins:
+    cors_origins.extend(
+        entry.strip()
+        for entry in env_cors_origins.split(",")
+        if entry.strip()
+    )
+
+allow_all_origins = (
+    os.getenv("ALLOW_ALL_ORIGINS", "false").strip().lower()
+    == "true"
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=(cors_origins if not allow_all_origins else ["*"]),
     allow_origin_regex=r"^http://.*:5173$",
-    allow_credentials=True,
+    allow_credentials=(not allow_all_origins),
     allow_methods=["*"],
     allow_headers=["*"]
 )
@@ -594,6 +624,10 @@ class FeedbackCreate(BaseModel):
     rating: int = Field(ge=1, le=5)
     feedback_type: str
     message: str
+
+
+class FeedbackApproval(BaseModel):
+    approved: bool
 
 
 class QuotationRejectRequest(BaseModel):
@@ -2184,6 +2218,119 @@ def api_generate_quotation(
 # localStorage cannot expose another user's records.
 # ============================================================
 
+@app.post("/api/intelligence/analyze")
+def analyze_freight_intelligence(
+    request: RouteRequest,
+    authorization: str = Header(None)
+):
+
+    try:
+
+        report = generate_freight_intelligence(
+            request.origin,
+            request.destination,
+            request.cargo_type,
+            request.cargo_subtype,
+            request.containers
+        )
+
+        # -------------------------------------------------
+        # SAVE HISTORY (same ownership rules as the other
+        # analysis endpoints). A history failure never
+        # affects the response.
+        # -------------------------------------------------
+
+        analysis_id = None
+
+        try:
+
+            recommended = (
+                report.get("route", {}).get(
+                    "recommended", {}
+                ) or {}
+            )
+
+            route_result = {
+                "recommended_route": {
+                    "route_id": recommended.get(
+                        "route_id", ""
+                    ),
+                    "route": recommended.get(
+                        "route_name", ""
+                    ),
+                    "transit_days": recommended.get(
+                        "transit_days"
+                    ),
+                    "distance_nm": recommended.get(
+                        "distance_nm"
+                    ),
+                    "transshipments": recommended.get(
+                        "transshipments"
+                    ),
+                    "score": recommended.get(
+                        "route_score"
+                    ),
+                },
+                "origin": request.origin,
+                "destination": request.destination,
+                "cargo_type": request.cargo_type,
+                "cargo_subtype": request.cargo_subtype,
+                "containers": request.containers,
+            }
+
+            quotation_snapshot = {
+                "pricing": report.get("pricing", {}),
+                "margin": report.get("margin", {}),
+                "reasons": (
+                    report.get("route", {}).get(
+                        "reasons", []
+                    )
+                ),
+            }
+
+            analysis_id = _save_route_history(
+                route_result,
+                request,
+                quotation_snapshot,
+                authorization=authorization
+            )
+
+        except Exception as history_error:
+
+            logger.warning(
+                "Could not save intelligence history: %s",
+                history_error
+            )
+
+        return {
+            **report,
+            "analysis_id": (
+                str(analysis_id) if analysis_id else None
+            )
+        }
+
+    except ValueError as error:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
+
+    except Exception as error:
+
+        logger.error(
+            "Freight intelligence error: %s", error
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to generate freight intelligence. "
+                "Please try again later."
+            )
+        )
+
+
 @app.get("/api/routes/history")
 def get_route_history(
     current_user: dict = Depends(get_current_user)
@@ -3095,6 +3242,86 @@ def get_admin_stats(
 
 
 # ============================================================
+# ADMIN - EXECUTIVE DASHBOARD
+# ============================================================
+# One compact payload for the Executive Dashboard view. The
+# counts are the same real MongoDB counts the existing
+# /api/admin/stats endpoint uses; the funnel, status
+# distribution, weekly trend and top-lane figures are computed
+# from the recent stored records by the pure aggregation layer
+# (app/services/executive_dashboard.py). Admin-only.
+# ============================================================
+
+@app.get(
+    "/api/admin/executive-dashboard",
+    summary="Executive dashboard KPIs and trends",
+    response_description=(
+        "Headline KPIs, the quotation approval funnel, the "
+        "shipment status distribution, 8 weeks of route "
+        "activity and the top lanes and cargo types, all "
+        "computed from stored platform records."
+    )
+)
+def get_admin_executive_dashboard(
+    current_user: dict = Depends(require_admin)
+):
+
+    try:
+
+        total_users = users_collection.count_documents({})
+
+        total_route_analyses = (
+            route_history_collection.count_documents({})
+        )
+
+        total_quotations = (
+            route_history_collection.count_documents({
+                "pricing": {"$exists": True}
+            })
+        )
+
+        total_shipments = shipments_collection.count_documents({})
+
+        recent_shipments = list(
+            shipments_collection
+            .find({})
+            .sort("created_at", -1)
+            .limit(500)
+        )
+
+        recent_history = list(
+            route_history_collection
+            .find({})
+            .sort("created_at", -1)
+            .limit(500)
+        )
+
+    except Exception as error:
+
+        logger.error(
+            "Executive dashboard data error: %s", error
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to load the executive dashboard. "
+                "Please try again later."
+            )
+        )
+
+    return build_executive_report(
+        total_users=total_users,
+        total_route_analyses=total_route_analyses,
+        total_quotations=total_quotations,
+        total_shipments=total_shipments,
+        shipments=recent_shipments,
+        history_records=recent_history,
+        status_flow=SHIPMENT_STATUS_FLOW,
+    )
+
+
+# ============================================================
 # ADMIN - USERS
 # ============================================================
 # Returns only safe user information. No passwords or hashes.
@@ -3356,11 +3583,52 @@ def _serialize_feedback(record):
     else:
         created_at_text = None
 
+    approved_at = record.get("approved_at")
+
+    if isinstance(approved_at, datetime):
+        approved_at_text = approved_at.isoformat()
+    elif isinstance(approved_at, str):
+        approved_at_text = approved_at
+    else:
+        approved_at_text = None
+
     return {
         "feedback_id": str(record["_id"]),
         "user_id": record.get("user_id", ""),
         "user_name": record.get("user_name", ""),
         "user_contact": record.get("user_contact", ""),
+        "rating": _normalize_feedback_rating(
+            record.get("rating", 0)
+        ),
+        "feedback_type": record.get("feedback_type", ""),
+        "message": record.get("message", ""),
+        "approved": bool(record.get("approved", False)),
+        "approved_at": approved_at_text,
+        "approved_by": record.get("approved_by", ""),
+        "created_at": created_at_text
+    }
+
+
+# ============================================================
+# HELPER - SERIALIZE A PUBLIC REVIEW
+# ============================================================
+# The public reviews feed shows approved reviews only and
+# never carries a user's contact details or internal ids.
+# ============================================================
+
+def _serialize_public_review(record):
+    created_at = record.get("created_at")
+
+    if isinstance(created_at, datetime):
+        created_at_text = created_at.isoformat()
+    elif isinstance(created_at, str):
+        created_at_text = created_at
+    else:
+        created_at_text = None
+
+    return {
+        "review_id": str(record["_id"]),
+        "user_name": record.get("user_name", "") or "Customer",
         "rating": _normalize_feedback_rating(
             record.get("rating", 0)
         ),
@@ -3414,6 +3682,9 @@ def submit_feedback(
         "rating": rating,
         "feedback_type": feedback_type,
         "message": message,
+        "approved": False,
+        "approved_at": None,
+        "approved_by": "",
         "created_at": datetime.utcnow()
     }
 
@@ -3482,8 +3753,164 @@ def get_admin_feedback(
 
 
 # ============================================================
-# ADMIN - PRICING & MARGIN
+# PUBLIC - REVIEWS
 # ============================================================
+# The broker's public customer-reviews feed. Public by design:
+# no token is required, so the frontend welcome area can show
+# it before login. Only feedback an administrator approved is
+# returned, and a review never carries a user's contact
+# details or internal ids.
+#
+# The moderation itself happens on the same feedback
+# collection, so a hidden or pending review simply never
+# reaches this endpoint.
+# ============================================================
+
+@app.get(
+    "/api/reviews",
+    summary="Approved customer reviews",
+    response_description=(
+        "Approved reviews with the average rating, the review "
+        "total and the rating breakdown. Public - no token "
+        "required. Never includes user contact details."
+    )
+)
+def get_public_reviews():
+
+    try:
+
+        approved_records = list(
+            feedbacks_collection
+            .find({"approved": True})
+            .sort("created_at", -1)
+            .limit(100)
+        )
+
+    except Exception as error:
+
+        logger.error(
+            "Unable to load public reviews: %s", error
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to load customer reviews."
+        )
+
+    reviews = [
+        _serialize_public_review(record)
+        for record in approved_records
+    ]
+
+    total_reviews = len(reviews)
+
+    average_rating = 0.0
+
+    rating_counts = {star: 0 for star in range(1, 6)}
+
+    if total_reviews:
+
+        ratings = [
+            review["rating"] for review in reviews
+        ]
+
+        average_rating = round(
+            sum(ratings) / total_reviews, 2
+        )
+
+        for rating in ratings:
+
+            rating_counts[rating] = (
+                rating_counts.get(rating, 0) + 1
+            )
+
+    return {
+        "success": True,
+        "reviews": reviews,
+        "summary": {
+            "review_count": total_reviews,
+            "average_rating": average_rating,
+            "rating_counts": rating_counts
+        }
+    }
+
+
+# ============================================================
+# ADMIN - REVIEW APPROVAL
+# ============================================================
+# Decides whether a feedback entry appears on the public
+# /api/reviews feed. Approving stamps who decided and when;
+# hiding clears those stamps. Only admins can do this, and
+# the feedback record itself is never deleted.
+# ============================================================
+
+@app.patch("/api/admin/feedback/{feedback_id}/approval")
+def update_feedback_approval(
+    feedback_id: str,
+    request: FeedbackApproval,
+    current_user: dict = Depends(require_admin)
+):
+
+    from bson import ObjectId
+
+    feedback_id = feedback_id.strip()
+
+    try:
+
+        feedback_doc = feedbacks_collection.find_one({
+            "_id": ObjectId(feedback_id)
+        })
+
+    except Exception:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Feedback not found."
+        )
+
+    if not feedback_doc:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Feedback not found."
+        )
+
+    stamp_fields = {}
+
+    if request.approved:
+
+        now = datetime.now(timezone.utc)
+
+        stamp_fields["approved"] = True
+        stamp_fields["approved_at"] = now
+        stamp_fields["approved_by"] = current_user.get(
+            "user_id", ""
+        )
+
+    else:
+
+        stamp_fields["approved"] = False
+        stamp_fields["approved_at"] = None
+        stamp_fields["approved_by"] = ""
+
+    feedbacks_collection.update_one(
+        {"_id": feedback_doc["_id"]},
+        {"$set": stamp_fields}
+    )
+
+    updated_doc = feedbacks_collection.find_one({
+        "_id": feedback_doc["_id"]
+    })
+
+    return {
+        "success": True,
+        "message": (
+            "Review approved and published."
+            if request.approved
+            else "Review hidden from the public feed."
+        ),
+        "feedback": _serialize_feedback(updated_doc)
+    }
 # The Pricing Agent and Margin Agent formulas are never
 # changed and the CSV files are never modified here.
 # ============================================================

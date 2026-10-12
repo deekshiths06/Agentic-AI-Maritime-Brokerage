@@ -1,4 +1,4 @@
-import React, {
+import {
   useCallback,
   useEffect,
   useRef,
@@ -14,62 +14,97 @@ import AssistantWidget from "./components/AssistantWidget.jsx";
 import { alternativeColorFor } from "./utils/maritimeGeometry";
 
 // ==========================================
-// ONE UNIFIED "HOW TO USE" WORKFLOW
-// Consolidates the former step cards and the
-// logic diagram into a single end-to-end flow
-// covering user actions AND the internal AI
-// agents (Route, Pricing, Margin) inline.
+// "HOW TO USE" - 8-STEP ONBOARDING GUIDE
+// A single, business-friendly end-to-end
+// workflow for first-time users. Each step
+// explains what to do, what the user gets,
+// and links to the real page it refers to.
+// The internal AI agents (Route, Pricing,
+// Margin, Weather, Customs) are named inline
+// so users know what happens behind the
+// screens.
 // ==========================================
 
 const howToFlow = [
   {
     icon: "◉",
-    title: "Login to Maritime AI",
+    title: "Register or Log In",
     description:
-      "Login using your registered email or mobile number and password to access the dashboard.",
+      "Open the platform and create a business account, or sign in with the email or mobile number you registered. Your account keeps your route searches, quotations and shipments private to you.",
+    outcome:
+      "You land on your own dashboard with a menu for routes, quotations, shipments and feedback.",
     system: "",
+    action: { label: "Go to Dashboard", nav: "Dashboard" },
   },
   {
     icon: "⇢",
-    title: "Enter Shipment Requirements",
+    title: "Enter Shipment Details",
     description:
-      "In Route Intelligence, choose the origin port, destination port, cargo type, cargo subtype and the number of containers.",
+      "Open Route Intelligence and complete the shipment form: origin port, destination port, cargo type, cargo subtype and number of containers. Pick a cargo type first and the matching subtypes appear automatically.",
+    outcome:
+      "The platform now has everything it needs to analyse your shipment.",
     system: "",
+    action: { label: "Open Route Intelligence", nav: "Routes" },
   },
   {
     icon: "⌖",
-    title: "Analyze Route",
+    title: "Analyze Shipping Routes",
     description:
-      "The Route Agent evaluates every available route on the corridor and returns the recommended route with transit time, distance and transshipments.",
+      "Submit the form and the Route Agent evaluates every available route on the corridor. It compares distance, estimated transit time, transshipments and a route score, then recommends the strongest option and lists the alternatives.",
+    outcome:
+      "A recommended route with its transit time, distance and transshipments, plus alternatives you can compare.",
     system: "Route Agent",
-  },
-  {
-    icon: "▣",
-    title: "Review the Recommended Route",
-    description:
-      "Inspect the recommended route on the Maritime Route Map and compare the alternatives, then select the option that fits your schedule.",
-    system: "",
+    action: { label: "Start a Route Analysis", nav: "Routes" },
   },
   {
     icon: "$",
-    title: "Generate Quotation",
+    title: "Review Freight Pricing",
     description:
-      "The Pricing Agent computes the operating and demand-adjusted cost, while the Margin Agent sets the selling price, expected profit and achieved margin.",
+      "The Pricing Agent estimates the operating and demand-adjusted freight cost, while the Margin Agent sets the selling price. Generating the quotation presents this as a clear, itemised price for your shipment.",
+    outcome:
+      "You understand how the freight price is built up, not just a single total.",
     system: "Pricing Agent · Margin Agent",
+    action: { label: "View Quotation", nav: "Quotation" },
+  },
+  {
+    icon: "⚠",
+    title: "Check Shipping Risks",
+    description:
+      "On the same results page, read the Weather Analysis and Customs Compliance insights. They flag weather exposure along the route and the customs documents and controls that apply at the destination.",
+    outcome:
+      "A clearer picture of weather and customs risks so you can plan around them early.",
+    system: "Weather Agent · Customs Agent",
+    action: { label: "Analyze Risks", nav: "Routes" },
   },
   {
     icon: "%",
-    title: "Accept Quotation & Submit for Approval",
+    title: "Generate and Review the Quotation",
     description:
-      "Accept the quotation to submit it for admin approval. Once an admin approves it, a shipment record is created automatically and appears in My Shipments.",
+      "From the results page, generate the quotation, then open the Quotation page to review the route summary, the itemised pricing and the total price. Nothing is committed until you accept it.",
+    outcome:
+      "A final, saved quotation you can review, compare or share before deciding.",
     system: "",
+    action: { label: "Open Quotation", nav: "Quotation" },
   },
   {
     icon: "◇",
-    title: "Track Shipment Status",
+    title: "Manage Shipments",
     description:
-      "The shipment advances through the controlled status flow — from Booking Confirmed to Delivered. This is a workflow simulation, not live vessel tracking.",
+      "Accept the quotation to submit it for admin approval. Once an admin approves it, a shipment record is created automatically and appears in My Shipments, where you can follow its status from Booking Confirmed to Delivered.",
+    outcome:
+      "A shipment you can follow through booking, transit and delivery. This is a workflow status, not live vessel tracking.",
     system: "",
+    action: { label: "Open My Shipments", nav: "Shipments" },
+  },
+  {
+    icon: "◈",
+    title: "Share Feedback",
+    description:
+      "Open Benefits & Feedback to see how the platform helps your business, read approved customer reviews, and submit your own rating and comment. New feedback is reviewed by our team before it appears publicly.",
+    outcome:
+      "Your voice helps other shippers and improves the platform. You can follow your submissions in My Feedback.",
+    system: "",
+    action: { label: "Open Benefits & Feedback", nav: "Benefits & Feedback" },
   },
 ];
 
@@ -813,6 +848,11 @@ function App() {
     useState(false);
   const [adminPricingError, setAdminPricingError] =
     useState("");
+  const [execDashboard, setExecDashboard] = useState(null);
+  const [execDashboardLoading, setExecDashboardLoading] =
+    useState(false);
+  const [execDashboardError, setExecDashboardError] =
+    useState("");
 
   // ==========================================
   // FEEDBACK STATE
@@ -841,6 +881,32 @@ function App() {
     useState(false);
   const [adminFeedbackError, setAdminFeedbackError] =
     useState("");
+  const [adminFeedbackFilter, setAdminFeedbackFilter] =
+    useState("all");
+  const [feedbackApprovalId, setFeedbackApprovalId] =
+    useState(null);
+  const [feedbackApprovalError, setFeedbackApprovalError] =
+    useState("");
+
+  // ==========================================
+  // PUBLIC REVIEWS STATE
+  // ==========================================
+  // Approved feedback only, loaded from the public
+  // /api/reviews feed for the dedicated Benefits &
+  // Feedback page. `reviewsSummary` carries the
+  // average rating, the review count and the rating
+  // breakdown. `reviewsVisibleCount` powers the
+  // "Load more" control.
+  // ==========================================
+
+  const REVIEWS_PAGE_SIZE = 6;
+
+  const [reviews, setReviews] = useState([]);
+  const [reviewsSummary, setReviewsSummary] = useState(null);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState("");
+  const [reviewsVisibleCount, setReviewsVisibleCount] =
+    useState(REVIEWS_PAGE_SIZE);
 
   // ==========================================
   // CUSTOMS STATE (CUSTOMS AGENT)
@@ -2409,6 +2475,46 @@ function App() {
   };
 
   // ==========================================
+  // LOAD EXECUTIVE DASHBOARD
+  // ==========================================
+
+  const loadExecDashboard = async () => {
+    setExecDashboardLoading(true);
+    setExecDashboardError("");
+
+    try {
+      const response = await adminFetch(
+        "/api/admin/executive-dashboard"
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load the executive dashboard."
+        );
+      }
+
+      setExecDashboard(data);
+    } catch (err) {
+      console.error(
+        "Executive dashboard loading error:",
+        err
+      );
+      setExecDashboard(null);
+      setExecDashboardError(
+        err.message ||
+          "Unable to load the executive dashboard."
+      );
+    } finally {
+      setExecDashboardLoading(false);
+    }
+  };
+
+  // ==========================================
   // LOAD ADMIN QUOTATIONS
   // ==========================================
 
@@ -2969,13 +3075,16 @@ function App() {
       }
 
       setFeedbackSuccess(
-        data?.message ||
-          "Thank you! Your feedback has been submitted."
+        "Thank you! Your feedback has been submitted " +
+          "and is awaiting review by our team. Once " +
+          "approved it will appear in the customer " +
+          "reviews section on this page."
       );
       setFeedbackRating(0);
       setFeedbackType("");
       setFeedbackMessage("");
       loadMyFeedback();
+      loadPublicReviews();
     } catch (err) {
       console.error(
         "Feedback submission error:",
@@ -3027,6 +3136,102 @@ function App() {
       );
     } finally {
       setAdminFeedbackLoading(false);
+    }
+  };
+
+  // ==========================================
+  // PUBLIC REVIEWS
+  // Approved customer reviews for the dedicated
+  // Benefits & Feedback page. No token:
+  // /api/reviews is public and only ever returns
+  // approved entries with no contact details.
+  // ==========================================
+
+  const loadPublicReviews = async () => {
+    setReviewsLoading(true);
+    setReviewsError("");
+
+    try {
+      const response = await fetch("/api/reviews");
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to load customer reviews."
+        );
+      }
+
+      setReviews(data?.reviews || []);
+      setReviewsSummary(data?.summary || null);
+      setReviewsVisibleCount(REVIEWS_PAGE_SIZE);
+    } catch (err) {
+      console.error(
+        "Public reviews loading error:",
+        err
+      );
+      setReviews([]);
+      setReviewsSummary(null);
+      setReviewsError(
+        err.message ||
+          "Unable to load customer reviews."
+      );
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  // ==========================================
+  // ADMIN REVIEW APPROVAL
+  // Approves or hides feedback on the public
+  // /api/reviews feed, then refreshes the list.
+  // ==========================================
+
+  const setFeedbackApproval = async (
+    feedbackId,
+    approved
+  ) => {
+    setFeedbackApprovalId(feedbackId);
+    setFeedbackApprovalError("");
+
+    try {
+      const response = await adminFetch(
+        `/api/admin/feedback/${feedbackId}/approval`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ approved }),
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            "Unable to update the review."
+        );
+      }
+
+      setFeedbackApprovalError("");
+      await loadAdminFeedback();
+    } catch (err) {
+      console.error(
+        "Review approval error:",
+        err
+      );
+      setFeedbackApprovalError(
+        err.message || "Unable to update the review."
+      );
+    } finally {
+      setFeedbackApprovalId(null);
     }
   };
  
@@ -3334,6 +3539,27 @@ function App() {
   // ==========================================
 
   const handleNavClick = (item) => {
+    // Defense in depth: admin-only destinations are never
+    // reachable from a non-admin session, even if a call
+    // slips past the hidden navigation. The backend still
+    // enforces authorization on every admin request.
+    if (
+      !isAdmin &&
+      [
+        "Admin Dashboard",
+        "Executive Dashboard",
+        "Users",
+        "Quotations",
+        "Pricing & Margin",
+        "Route Activity",
+        "Customs Management",
+        "User Feedback",
+      ].includes(item)
+    ) {
+      goHome();
+      return;
+    }
+
     if (item === "Dashboard") {
       goHome();
       return;
@@ -3389,11 +3615,17 @@ function App() {
       return;
     }
 
-    if (item === "Feedback") {
-      setActiveNav("Feedback");
-      setView("feedback");
+    if (
+      item === "Benefits & Feedback" ||
+      item === "Feedback"
+    ) {
+      setActiveNav("Benefits & Feedback");
+      setView("benefits");
       setError("");
+      setFeedbackSuccess("");
+      setFeedbackError("");
       loadMyFeedback();
+      loadPublicReviews();
       return;
     }
 
@@ -3408,6 +3640,14 @@ function App() {
       loadAdminStats();
       loadAdminShipments();
       loadAdminActivity();
+      return;
+    }
+
+    if (item === "Executive Dashboard") {
+      setActiveNav("Executive Dashboard");
+      setView("admin-exec");
+      setError("");
+      loadExecDashboard();
       return;
     }
 
@@ -3627,6 +3867,131 @@ function App() {
             </p>
 
           </div>
+
+        </div>
+
+        {/* BUSINESS WELCOME / VALUE PROPOSITION */}
+        {/* Maritime shipping photo served locally from /maritime/. */}
+
+        <div className="business-welcome">
+
+          <div className="bw-copy">
+
+            <span className="bw-eyebrow">
+              Agentic AI Maritime Brokerage
+            </span>
+
+            <h2>
+              Freight intelligence that works like a
+              specialist brokerage
+            </h2>
+
+            <p className="bw-lede">
+              Plan every shipment with a connected AI broker:
+              route selection, freight pricing, customs
+              compliance and weather risk are resolved together
+              from real route and pricing data.
+            </p>
+
+            <ul className="bw-benefits">
+
+              <li>
+
+                <span className="bw-feature-icon" aria-hidden="true">
+                  ⇢
+                </span>
+
+                <div>
+                  <strong>
+                    AI Route Intelligence
+                  </strong>
+                  <span>
+                    Compare every available lane and get a
+                    scored, explained recommendation.
+                  </span>
+                </div>
+
+              </li>
+
+              <li>
+
+                <span className="bw-feature-icon" aria-hidden="true">
+                  ◉
+                </span>
+
+                <div>
+                  <strong>
+                    Dynamic Freight Pricing
+                  </strong>
+                  <span>
+                    Cost built from base freight, fuel, port
+                    and demand factors.
+                  </span>
+                </div>
+
+              </li>
+
+              <li>
+
+                <span className="bw-feature-icon" aria-hidden="true">
+                  ✦
+                </span>
+
+                <div>
+                  <strong>
+                    Weather & Customs Insight
+                  </strong>
+                  <span>
+                    Route risk levels and compliance checks
+                    before you commit.
+                  </span>
+                </div>
+
+              </li>
+
+            </ul>
+
+            <div className="bw-actions">
+
+              <button
+                className="primary-button"
+                type="button"
+                onClick={goToSearch}
+              >
+                Explore Route Intelligence →
+              </button>
+
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() =>
+                  handleNavClick("Quotation")
+                }
+              >
+                Generate a Quotation
+              </button>
+
+            </div>
+
+          </div>
+
+          <figure className="bw-visual">
+
+            <img
+              src="/maritime/container-ship-port.jpg"
+              alt="Container ship at a busy port terminal"
+            />
+
+            <figcaption className="bw-visual-caption">
+              <span>
+                Maritime Network
+              </span>
+              <strong>
+                Port-to-port coverage across global trade lanes
+              </strong>
+            </figcaption>
+
+          </figure>
 
         </div>
 
@@ -7177,7 +7542,7 @@ function App() {
           <div>
 
             <span className="section-label">
-              HELP & SUPPORT
+              HELP &amp; SUPPORT
             </span>
 
             <h1>
@@ -7185,68 +7550,148 @@ function App() {
             </h1>
 
             <p>
-              One end-to-end workflow: enter your shipment
-              requirements, let the AI agents design and price
-              the best route, then track your shipment.
+              A complete, step-by-step guide for first-time
+              users. Follow the eight steps from signing in to
+              sharing feedback — each step links straight to the
+              page you need.
             </p>
 
           </div>
 
         </div>
 
-        {/* ONE UNIFIED WORKFLOW */}
-        {/* Combines the user steps with the internal AI agents
-            (Route Agent, Pricing Agent, Margin Agent) inline,
-            so the process is a single flow — not two separate
-            explanations. */}
+        {/* PROGRESS STEPPER */}
 
-        <div className="howto-flow">
+        <div className="howto-progress">
+
+          <div
+            className="howto-progress-track"
+            aria-hidden="true"
+          >
+            <span className="howto-progress-fill"></span>
+          </div>
+
+          <ol className="howto-progress-list">
+
+            {howToFlow.map((step, index) => (
+              <li
+                className="howto-progress-item"
+                key={step.title}
+              >
+                <button
+                  className="howto-progress-dot"
+                  type="button"
+                  title={step.title}
+                  onClick={() => {
+                    const el = document.getElementById(
+                      `howto-step-${index + 1}`
+                    );
+
+                    if (el && el.scrollIntoView) {
+                      el.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      });
+                    }
+                  }}
+                >
+                  <span className="howto-progress-number">
+                    {index + 1}
+                  </span>
+
+                  <span className="howto-progress-label">
+                    {step.title}
+                  </span>
+                </button>
+              </li>
+            ))}
+
+          </ol>
+
+        </div>
+
+        {/* STEP-BY-STEP GUIDE */}
+
+        <ol className="howto-steps">
 
           {howToFlow.map((step, index) => (
-            <React.Fragment key={step.title}>
+            <li
+              className="howto-step"
+              id={`howto-step-${index + 1}`}
+              key={step.title}
+            >
 
-              {index > 0 && (
-                <div
-                  className="howto-flow-arrow"
-                  aria-hidden="true"
-                >
-                  →
-                </div>
-              )}
-
-              <article className="howto-card">
+              <div
+                className="howto-step-marker"
+                aria-hidden="true"
+              >
 
                 <span className="howto-step-number">
                   {index + 1}
                 </span>
 
-                <div
-                  className="howto-card-icon"
-                  aria-hidden="true"
-                >
-                  {step.icon}
+                {index < howToFlow.length - 1 && (
+                  <span className="howto-step-line"></span>
+                )}
+
+              </div>
+
+              <article className="howto-step-card">
+
+                <div className="howto-step-head">
+
+                  <span
+                    className="howto-step-icon"
+                    aria-hidden="true"
+                  >
+                    {step.icon}
+                  </span>
+
+                  <div className="howto-step-titles">
+
+                    <h3>
+                      {step.title}
+                    </h3>
+
+                    {step.system && (
+                      <span className="howto-agent-chip">
+                        {step.system}
+                      </span>
+                    )}
+
+                  </div>
+
                 </div>
 
-                <h3>
-                  {step.title}
-                </h3>
-
-                <p>
+                <p className="howto-step-body">
                   {step.description}
                 </p>
 
-                {step.system && (
-                  <span className="howto-agent-chip">
-                    {step.system}
-                  </span>
+                <p className="howto-step-outcome">
+                  <span className="howto-step-outcome-label">
+                    What you get:
+                  </span>{" "}
+                  {step.outcome}
+                </p>
+
+                {step.action && (
+                  <button
+                    className="howto-step-action secondary-button"
+                    type="button"
+                    onClick={() =>
+                      handleNavClick(step.action.nav)
+                    }
+                  >
+                    {step.action.label} →
+                  </button>
                 )}
 
               </article>
 
-            </React.Fragment>
+            </li>
           ))}
 
-        </div>
+        </ol>
 
         {/* CLOSING NOTE */}
 
@@ -7361,6 +7806,17 @@ function App() {
     return `${num.toFixed(1)}%`;
   };
 
+  const formatDecimal = (value, digits = 2) => {
+    if (value === undefined || value === null || value === "") {
+      return "-";
+    }
+
+    const num = Number(value);
+    if (isNaN(num)) return "-";
+
+    return num.toFixed(digits);
+  };
+
   const adminRoleBadge = (role) => {
     const normalized =
       role === "admin" ? "admin" : "user";
@@ -7406,7 +7862,7 @@ function App() {
 
   const renderShipments = () => {
     return (
-      <section className="shipments-screen">
+      <section className="shipments-screen page-view">
         <div className="results-header">
           <div>
             <span className="section-label">
@@ -7554,7 +8010,7 @@ function App() {
     const shipment = shipmentDetails;
 
     return (
-      <section className="shipment-details-screen">
+      <section className="shipment-details-screen page-view">
         <div className="shipment-details-topbar">
           <button
             className="back-button"
@@ -9654,9 +10110,7 @@ function App() {
                         </td>
 
                         <td>
-                          {Number(
-                            item.demand_factor
-                          ).toFixed(2) || "-"}
+                          {formatDecimal(item.demand_factor)}
                         </td>
 
                         <td>
@@ -10084,12 +10538,20 @@ function App() {
   };
 
   // ==========================================
-  // USER FEEDBACK PAGE
+  // BENEFITS & FEEDBACK PAGE
+  // ==========================================
+  // A dedicated page, separate from the dashboard:
+  //   1. what the platform does for shippers + CTA
+  //   2. approved customer reviews (/api/reviews,
+  //      public, approved-only, no contact details)
+  //   3. the feedback form (pending until an admin
+  //      approves it, so it never appears publicly)
+  //   4. the signed-in user's own submissions
   // ==========================================
 
-  const renderFeedback = () => {
+  const renderBenefitsFeedback = () => {
     return (
-      <section className="results-screen page-view">
+      <section className="results-screen page-view benefits-screen">
 
         <div className="results-header">
 
@@ -10104,17 +10566,353 @@ function App() {
             </button>
 
             <span className="section-label">
-              FEEDBACK
+              BENEFITS &amp; FEEDBACK
             </span>
 
             <h1>
-              Share Your Feedback
+              Benefits &amp; Feedback
             </h1>
 
             <p>
-              Your feedback helps us improve the
-              Maritime AI platform.
+              See how the Maritime AI platform supports
+              your shipping decisions — then share your
+              own experience with other shippers.
             </p>
+
+          </div>
+
+        </div>
+
+        {/* BENEFITS INTRO + CAPABILITIES */}
+
+        <div className="benefits-intro">
+
+          <span className="feedback-type-badge benefits-eyebrow">
+            WHY SHIPPERS USE THE PLATFORM
+          </span>
+
+          <h2 className="benefits-title">
+            Built to make maritime freight decisions simpler
+          </h2>
+
+          <p className="benefits-lead">
+            The Maritime AI platform brings route
+            intelligence, freight pricing and risk
+            insights together in one place, so importers
+            and exporters can plan with more confidence.
+            It is a decision-support tool — it does not
+            promise fixed savings or guaranteed delivery
+            times.
+          </p>
+
+          <div className="benefits-grid">
+
+            <article className="benefit-card">
+
+              <span className="benefit-card-icon">
+                ⛵
+              </span>
+
+              <h3>
+                Route Comparison &amp; Intelligence
+              </h3>
+
+              <p>
+                Compare candidate sea routes side by side
+                with distance, estimated transit time and a
+                route score, so you can weigh the trade-offs
+                before you book.
+              </p>
+
+              <span className="benefit-card-why">
+                Why it helps: pick the best balance of cost
+                and time for each lane.
+              </span>
+
+            </article>
+
+            <article className="benefit-card">
+
+              <span className="benefit-card-icon">
+                ◈
+              </span>
+
+              <h3>
+                Freight Price Estimation &amp; Quotations
+              </h3>
+
+              <p>
+                Turn your cargo details into an estimated
+                freight price and a saved quotation you can
+                revisit, compare or share with your team.
+              </p>
+
+              <span className="benefit-card-why">
+                Why it helps: budget earlier and prepare
+                customer quotes faster.
+              </span>
+
+            </article>
+
+            <article className="benefit-card">
+
+              <span className="benefit-card-icon">
+                ⚠
+              </span>
+
+              <h3>
+                Weather &amp; Customs Risk Insights
+              </h3>
+
+              <p>
+                Surface weather exposure along the route and
+                customs considerations for the destination,
+                so you can plan around risks before they
+                become delays.
+              </p>
+
+              <span className="benefit-card-why">
+                Why it helps: fewer surprises at the port and
+                at the border.
+              </span>
+
+            </article>
+
+            <article className="benefit-card">
+
+              <span className="benefit-card-icon">
+                ▤
+              </span>
+
+              <h3>
+                Quotation &amp; Shipment Tracking
+              </h3>
+
+              <p>
+                Keep your quotations and shipments in one
+                place and follow each consignment through
+                its milestones from booking to delivery.
+              </p>
+
+              <span className="benefit-card-why">
+                Why it helps: stay on top of every shipment
+                without chasing updates.
+              </span>
+
+            </article>
+
+          </div>
+
+          <div className="benefits-cta">
+
+            <div>
+
+              <h3>
+                Ready to price a shipment?
+              </h3>
+
+              <p>
+                Enter your route and cargo details to get an
+                estimated freight price and a quotation you
+                can keep.
+              </p>
+
+            </div>
+
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => handleNavClick("Quotation")}
+            >
+              Start a Quotation
+            </button>
+
+          </div>
+
+        </div>
+
+        {/* CUSTOMER REVIEWS
+            Approved reviews straight from the public
+            /api/reviews feed (no token required). The
+            average badge and count come from the same
+            stored feedback the admin approves. Pending
+            and hidden feedback never reaches this feed. */}
+
+        <div className="reviews-section">
+
+          <div className="reviews-head">
+
+            <div>
+
+              <span className="feedback-type-badge reviews-eyebrow">
+                CUSTOMER REVIEWS
+              </span>
+
+              <h2 className="reviews-title">
+                What Other Shippers Say
+              </h2>
+
+            </div>
+
+            {reviewsSummary &&
+              reviewsSummary.review_count > 0 && (
+                <div className="reviews-average-badge">
+
+                  <strong>
+                    {reviewsSummary.average_rating.toFixed(1)}
+                  </strong>
+
+                  <span className="reviews-average-stars">
+                    {"★".repeat(
+                      Math.round(reviewsSummary.average_rating)
+                    )}
+                    <i>
+                      {"★".repeat(
+                        Math.max(
+                          0,
+                          5 - Math.round(
+                            reviewsSummary.average_rating
+                          )
+                        )
+                      )}
+                    </i>
+                  </span>
+
+                  <span className="reviews-average-count">
+                    {reviewsSummary.review_count}{" "}
+                    approved review
+                    {reviewsSummary.review_count !== 1
+                      ? "s"
+                      : ""}
+                  </span>
+
+                </div>
+              )}
+
+          </div>
+
+          {reviewsError && (
+            <p className="reviews-note">
+              {reviewsError}
+            </p>
+          )}
+
+          {reviewsLoading && (
+            <div className="loading-message">
+              <span className="loading-spinner"></span>
+              Loading customer reviews...
+            </div>
+          )}
+
+          {!reviewsLoading &&
+            !reviewsError &&
+            reviews.length > 0 && (
+              <>
+                <div className="reviews-grid">
+
+                  {reviews
+                    .slice(0, reviewsVisibleCount)
+                    .map((review) => (
+                      <article
+                        className="review-card"
+                        key={review.review_id}
+                      >
+
+                        <div className="review-card-top">
+
+                          <div className="review-card-stars">
+                            {"★".repeat(review.rating || 0)}
+                            <i>
+                              {"★".repeat(
+                                Math.max(
+                                  0,
+                                  5 - (review.rating || 0)
+                                )
+                              )}
+                            </i>
+                          </div>
+
+                          {review.feedback_type && (
+                            <span className="feedback-type-badge">
+                              {review.feedback_type}
+                            </span>
+                          )}
+
+                        </div>
+
+                        <p className="review-card-message">
+                          &ldquo;{review.message}&rdquo;
+                        </p>
+
+                        <div className="review-card-meta">
+
+                          <strong>
+                            {review.user_name}
+                          </strong>
+
+                          <span>
+                            {formatFullDate(review.created_at)}
+                          </span>
+
+                        </div>
+
+                      </article>
+                    ))}
+
+                </div>
+
+                {reviewsVisibleCount < reviews.length && (
+                  <div className="reviews-actions">
+
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() =>
+                        setReviewsVisibleCount(
+                          (count) =>
+                            count + REVIEWS_PAGE_SIZE
+                        )
+                      }
+                    >
+                      Load More Reviews (
+                      {reviews.length - reviewsVisibleCount}{" "}
+                      more)
+                    </button>
+
+                  </div>
+                )}
+              </>
+            )}
+
+          {!reviewsLoading &&
+            !reviewsError &&
+            reviews.length === 0 && (
+              <p className="reviews-note">
+                No customer reviews published yet. Be the
+                first to share your experience.
+              </p>
+            )}
+
+          <div className="reviews-actions">
+
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                const form = document.getElementById(
+                  "feedback-form"
+                );
+
+                if (form && form.scrollIntoView) {
+                  form.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                  });
+                }
+              }}
+            >
+              Share Your Feedback
+            </button>
 
           </div>
 
@@ -10122,7 +10920,28 @@ function App() {
 
         {/* FEEDBACK FORM CARD */}
 
-        <div className="feedback-form-card">
+        <div
+          className="feedback-form-card"
+          id="feedback-form"
+        >
+
+          <div className="feedback-form-head">
+
+            <span className="section-label">
+              YOUR FEEDBACK
+            </span>
+
+            <h2>
+              Share Your Experience
+            </h2>
+
+            <p>
+              Your feedback helps us improve the Maritime
+              AI platform. New reviews are reviewed by our
+              team before they appear publicly.
+            </p>
+
+          </div>
 
           {feedbackSuccess && (
             <div className="admin-shipment-success feedback-success">
@@ -10341,6 +11160,16 @@ function App() {
   // ==========================================
 
   const renderAdminFeedback = () => {
+    const filteredFeedback = adminFeedback.filter((item) => {
+      if (adminFeedbackFilter === "approved") {
+        return item.approved === true;
+      }
+      if (adminFeedbackFilter === "pending") {
+        return item.approved !== true;
+      }
+      return true;
+    });
+
     return (
       <section className="results-screen page-view">
 
@@ -10381,8 +11210,10 @@ function App() {
 
           <div className="admin-search-box">
             <span className="admin-users-count">
-              {adminFeedback.length} feedback
-              {adminFeedback.length !== 1 ? "s" : ""}
+              {filteredFeedback.length} feedback
+              {filteredFeedback.length !== 1 ? "s" : ""}
+              {adminFeedbackFilter !== "all" &&
+                ` (of ${adminFeedback.length})`}
             </span>
           </div>
 
@@ -10395,6 +11226,39 @@ function App() {
           </button>
 
         </div>
+
+        {/* MODERATION FILTERS */}
+
+        <div className="reviews-filter-row">
+
+          {[
+            { key: "all", label: "All" },
+            { key: "approved", label: "Published" },
+            { key: "pending", label: "Pending" },
+          ].map((option) => (
+            <button
+              className={
+                adminFeedbackFilter === option.key
+                  ? "reviews-filter-chip active"
+                  : "reviews-filter-chip"
+              }
+              type="button"
+              key={option.key}
+              onClick={() =>
+                setAdminFeedbackFilter(option.key)
+              }
+            >
+              {option.label}
+            </button>
+          ))}
+
+        </div>
+
+        {feedbackApprovalError && (
+          <div className="error-message">
+            {feedbackApprovalError}
+          </div>
+        )}
 
         {/* ERROR */}
 
@@ -10413,7 +11277,7 @@ function App() {
           </div>
         )}
 
-        {/* EMPTY */}
+        {/* EMPTY (no feedback at all) */}
 
         {!adminFeedbackLoading &&
           !adminFeedbackError &&
@@ -10432,13 +11296,33 @@ function App() {
             </div>
           )}
 
+        {/* EMPTY (filter has no matches) */}
+
+        {!adminFeedbackLoading &&
+          !adminFeedbackError &&
+          adminFeedback.length > 0 &&
+          filteredFeedback.length === 0 && (
+            <div className="history-empty">
+              <div className="history-empty-icon">
+                ◈
+              </div>
+              <h3>
+                No feedback matches this filter.
+              </h3>
+              <p>
+                Try a different filter to see other
+                feedback.
+              </p>
+            </div>
+          )}
+
         {/* FEEDBACK LIST */}
 
         {!adminFeedbackLoading &&
           !adminFeedbackError &&
-          adminFeedback.length > 0 && (
+          filteredFeedback.length > 0 && (
             <div className="feedback-grid">
-              {adminFeedback.map((item) => (
+              {filteredFeedback.map((item) => (
                 <div
                   className="feedback-record"
                   key={item.feedback_id}
@@ -10483,9 +11367,603 @@ function App() {
                   <div className="feedback-record-date">
                     Submitted: {formatFullDate(item.created_at)}
                   </div>
+
+                  {/* MODERATION */}
+                  <div className="feedback-moderate">
+
+                    <span
+                      className={
+                        item.approved
+                          ? "review-status-badge review-status-published"
+                          : "review-status-badge review-status-pending"
+                      }
+                    >
+                      {item.approved
+                        ? "Published"
+                        : "Pending"}
+                    </span>
+
+                    {feedbackApprovalId ===
+                      item.feedback_id ? (
+                      <span className="review-action-loading">
+                        Updating...
+                      </span>
+                    ) : item.approved ? (
+                      <button
+                        className="review-action-button review-action-hide"
+                        type="button"
+                        onClick={() =>
+                          setFeedbackApproval(
+                            item.feedback_id,
+                            false
+                          )
+                        }
+                      >
+                        Hide from feed
+                      </button>
+                    ) : (
+                      <button
+                        className="review-action-button review-action-publish"
+                        type="button"
+                        onClick={() =>
+                          setFeedbackApproval(
+                            item.feedback_id,
+                            true
+                          )
+                        }
+                      >
+                        Approve & publish
+                      </button>
+                    )}
+
+                  </div>
                 </div>
               ))}
             </div>
+          )}
+
+      </section>
+    );
+  };
+
+
+  // ==========================================
+  // EXECUTIVE DASHBOARD
+  // One command view of the live engagement funnel,
+  // the shipment pipeline, the weekly route activity
+  // trend and the busiest lanes and cargo types.
+  // Every figure comes from the real stored records
+  // via GET /api/admin/executive-dashboard.
+  // ==========================================
+
+  const execKpiCards = [
+    {
+      key: "total_users",
+      label: "Registered Users",
+      icon: "▽",
+    },
+    {
+      key: "total_route_analyses",
+      label: "Route Analyses",
+      icon: "◈",
+    },
+    {
+      key: "total_quotations",
+      label: "Quotations Issued",
+      icon: "❝",
+    },
+    {
+      key: "pending_approvals",
+      label: "Pending Approvals",
+      icon: "⏰",
+    },
+    {
+      key: "approved_quotations",
+      label: "Approved",
+      icon: "✓",
+    },
+    {
+      key: "total_shipments",
+      label: "Total Shipments",
+      icon: "▤",
+    },
+    {
+      key: "active_shipments",
+      label: "Active Shipments",
+      icon: "⟳",
+    },
+    {
+      key: "delivered_shipments",
+      label: "Delivered",
+      icon: "✓",
+    },
+  ];
+
+  const renderExecDashboard = () => {
+
+    const journey = [
+      {
+        key: "analyses",
+        label: "Route Analyses",
+        note: "total",
+      },
+      {
+        key: "quotations",
+        label: "Quotations",
+        note: "issued",
+      },
+      {
+        key: "accepted",
+        label: "Accepted",
+        note: "by customer",
+      },
+      {
+        key: "approved",
+        label: "Approved",
+        note: "by you",
+      },
+      {
+        key: "shipments",
+        label: "Shipments",
+        note: "in motion",
+      },
+    ];
+
+    const funnelMax = Math.max(
+      1,
+      execDashboard?.funnel?.analyses || 0
+    );
+
+    const trendMax = Math.max(
+      1,
+      ...(execDashboard?.weekly_activity ||
+        []).map((item) => item.count || 0)
+    );
+
+    return (
+      <section className="exec-dashboard page-view">
+
+        <div className="admin-section-header exec-header">
+
+          <div>
+
+            <span className="section-label">
+              EXECUTIVE DASHBOARD
+            </span>
+
+            <h2 className="admin-section-title">
+              Brokerage Health at a Glance
+            </h2>
+
+            <p className="admin-section-subtitle">
+              The full live picture of the platform: who is
+              analyzing, accepting, approving and shipping -
+              straight from the stored records.
+            </p>
+
+          </div>
+
+          {!execDashboardLoading &&
+            !execDashboardError &&
+            execDashboard?.generated_at && (
+              <span className="exec-generated">
+                Updated{" "}
+                {formatFullDate(
+                  execDashboard.generated_at
+                )}
+              </span>
+            )}
+
+        </div>
+
+        <div className="exec-toolbar">
+
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={loadExecDashboard}
+            disabled={execDashboardLoading}
+          >
+            {execDashboardLoading
+              ? "Refreshing..."
+              : "Refresh Data"}
+          </button>
+
+          {execDashboard?.snapshot && (
+            <span className="exec-snapshot-note">
+              Based on{" "}
+              {execDashboard.snapshot.recent_history_checked}
+              {" "}recent analyses and{" "}
+              {execDashboard.snapshot.recent_shipments_checked}
+              {" "}recent shipments
+            </span>
+          )}
+
+        </div>
+
+        {execDashboardLoading && (
+          <div className="loading-message">
+            <span className="loading-spinner"></span>
+            Loading executive dashboard...
+          </div>
+        )}
+
+        {execDashboardError && (
+          <div className="error-message">
+            {execDashboardError}
+          </div>
+        )}
+
+        {!execDashboardLoading &&
+          !execDashboardError &&
+          execDashboard && (
+            <>
+
+              {/* KPI CARDS */}
+
+              <div className="exec-kpi-grid">
+
+                {execKpiCards.map((card) => (
+                  <div
+                    className="exec-kpi-card"
+                    key={card.key}
+                  >
+
+                    <span className="exec-kpi-icon">
+                      {card.icon}
+                    </span>
+
+                    <div className="exec-kpi-meta">
+
+                      <strong className="exec-kpi-value">
+                        {(
+                          execDashboard.kpis?.[card.key] || 0
+                        ).toLocaleString()}
+                      </strong>
+
+                      <span className="exec-kpi-label">
+                        {card.label}
+                      </span>
+
+                    </div>
+
+                  </div>
+                ))}
+
+              </div>
+
+              {/* ENGAGEMENT FUNNEL */}
+
+              <div className="comparison-section admin-section-card">
+
+                <div className="admin-section-header">
+
+                  <span className="section-label">
+                    ENGAGEMENT FUNNEL
+                  </span>
+
+                </div>
+
+                <div className="exec-funnel">
+
+                  {journey.map((step, index) => {
+
+                    const value =
+                      execDashboard.funnel?.[step.key] || 0;
+
+                    const rate =
+                      execDashboard.funnel
+                        ?.conversion_rates?.[
+                          index === 0
+                            ? "analyses_to_quotations"
+                            : index === 1
+                            ? "quotations_to_accepted"
+                            : index === 2
+                            ? "accepted_to_approved"
+                            : "approved_to_shipments"
+                        ] ?? 0;
+
+                    const width =
+                      index === 0
+                        ? 100
+                        : Math.max(
+                            4,
+                            Math.round(
+                              (value / funnelMax) * 100
+                            )
+                          );
+
+                    return (
+                      <div
+                        className="exec-funnel-row"
+                        key={step.key}
+                      >
+
+                        <div className="exec-funnel-meta">
+
+                          <span className="exec-funnel-name">
+                            <i>{index + 1}</i>
+                            {step.label}
+                          </span>
+
+                          <span className="exec-funnel-count">
+                            {value.toLocaleString()}{" "}
+                            {step.note}
+                          </span>
+
+                        </div>
+
+                        <div className="exec-funnel-rank">
+
+                          <span
+                            className="exec-funnel-rate"
+                            title="conversion from previous stage"
+                          >
+                            {index === 0 ? "—" : `${rate}%`}
+                          </span>
+
+                          <span className="exec-funnel-track">
+                            <span
+                              className="exec-funnel-fill"
+                              style={{
+                                width: `${width}%`,
+                              }}
+                            ></span>
+                          </span>
+
+                        </div>
+
+                      </div>
+                    );
+                  })}
+
+                </div>
+
+              </div>
+
+              {/* WEEKLY ROUTE ACTIVITY + SHIPMENT PIPELINE */}
+
+              <div className="exec-split">
+
+                <div className="comparison-section admin-section-card">
+
+                  <div className="admin-section-header">
+
+                    <span className="section-label">
+                      WEEKLY ROUTE ACTIVITY
+                    </span>
+
+                  </div>
+
+                  <div className="exec-trend">
+
+                    {(execDashboard.weekly_activity || [])
+                      .slice(-8)
+                      .map((item) => (
+                        <div
+                          className="exec-trend-col"
+                          key={item.week}
+                          title={`${item.week}: ${item.count}`}
+                        >
+
+                          <span className="exec-trend-count">
+                            {item.count || 0}
+                          </span>
+
+                          <span
+                            className="exec-trend-bar"
+                            style={{
+                              height: `${
+                                Math.max(
+                                  6,
+                                  Math.round(
+                                    ((item.count || 0) /
+                                      trendMax) *
+                                      100
+                                  )
+                                )
+                              }%`,
+                            }}
+                          ></span>
+
+                          <span className="exec-trend-label">
+                            {String(
+                              item.week.split("-")[1] || ""
+                            ).replace("W", "W")}
+                          </span>
+
+                        </div>
+                      ))}
+
+                  </div>
+
+                </div>
+
+                <div className="comparison-section admin-section-card">
+
+                  <div className="admin-section-header">
+
+                    <span className="section-label">
+                      SHIPMENT PIPELINE
+                    </span>
+
+                  </div>
+
+                  {execDashboard.shipment_status?.length ? (
+
+                    <div className="exec-pipeline">
+
+                      {(execDashboard.shipment_status || []).map(
+                        (item) => (
+                          <div
+                            className="exec-pipeline-row"
+                            key={item.status}
+                          >
+
+                            <span className="exec-pipeline-label">
+                              {item.status}
+                            </span>
+
+                            <span className="exec-pipeline-track">
+                              <span
+                                className="exec-pipeline-fill"
+                                style={{
+                                  width: `${
+                                    item.count
+                                      ? `${Math.max(
+                                          6,
+                                          Math.round(
+                                            (item.count /
+                                              Math.max(
+                                                1,
+                                                execDashboard
+                                                  .shipment_status
+                                                  .reduce(
+                                                    (sum, s) =>
+                                                      sum +
+                                                      (s.count ||
+                                                        0),
+                                                    0
+                                                  )
+                                              )) *
+                                              100
+                                          )
+                                        )}%`
+                                      : "0%"
+                                  }`,
+                                }}
+                              ></span>
+                            </span>
+
+                            <strong className="exec-pipeline-count">
+                              {item.count || 0}
+                            </strong>
+
+                          </div>
+                        )
+                      )}
+
+                    </div>
+
+                  ) : (
+
+                    <p className="admin-empty-note">
+                      No shipments recorded yet.
+                    </p>
+
+                  )}
+
+                </div>
+
+              </div>
+
+              {/* TOP LANES + TOP CARGO */}
+
+              <div className="exec-split">
+
+                <div className="comparison-section admin-section-card">
+
+                  <div className="admin-section-header">
+
+                    <span className="section-label">
+                      TOP LANES
+                    </span>
+
+                  </div>
+
+                  {execDashboard.top_lanes?.length ? (
+
+                    <div className="exec-rank-list">
+
+                      {(execDashboard.top_lanes || []).map(
+                        (item, index) => (
+                          <div
+                            className="exec-rank-item"
+                            key={`${item.label}-${index}`}
+                          >
+
+                            <span className="exec-rank-pos">
+                              {index + 1}
+                            </span>
+
+                            <span className="exec-rank-label">
+                              {item.label}
+                            </span>
+
+                            <strong className="exec-rank-count">
+                              {item.count.toLocaleString()}{" "}
+                              <i>analyses</i>
+                            </strong>
+
+                          </div>
+                        )
+                      )}
+
+                    </div>
+
+                  ) : (
+
+                    <p className="admin-empty-note">
+                      No route activity recorded yet.
+                    </p>
+
+                  )}
+
+                </div>
+
+                <div className="comparison-section admin-section-card">
+
+                  <div className="admin-section-header">
+
+                    <span className="section-label">
+                      TOP CARGO TYPES
+                    </span>
+
+                  </div>
+
+                  {execDashboard.top_cargo?.length ? (
+
+                    <div className="exec-rank-list">
+
+                      {(execDashboard.top_cargo || []).map(
+                        (item, index) => (
+                          <div
+                            className="exec-rank-item"
+                            key={`${item.label}-${index}`}
+                          >
+
+                            <span className="exec-rank-pos">
+                              {index + 1}
+                            </span>
+
+                            <span className="exec-rank-label">
+                              {item.label}
+                            </span>
+
+                            <strong className="exec-rank-count">
+                              {item.count.toLocaleString()}{" "}
+                              <i>analyses</i>
+                            </strong>
+
+                          </div>
+                        )
+                      )}
+
+                    </div>
+
+                  ) : (
+
+                    <p className="admin-empty-note">
+                      No cargo activity recorded yet.
+                    </p>
+
+                  )}
+
+                </div>
+
+              </div>
+
+            </>
           )}
 
       </section>
@@ -10551,6 +12029,26 @@ function App() {
                 </span>
 
                 Admin Dashboard
+
+              </button>
+
+              <button
+                className={
+                  activeNav === "Executive Dashboard"
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                type="button"
+                onClick={() =>
+                  handleNavClick("Executive Dashboard")
+                }
+              >
+
+                <span className="nav-icon">
+                  ◃
+                </span>
+
+                Executive Dashboard
 
               </button>
 
@@ -10707,7 +12205,7 @@ function App() {
               >
 
                 <span className="nav-icon">
-                  ❝
+                  ◈
                 </span>
 
                 User Feedback
@@ -10842,13 +12340,13 @@ function App() {
 
               <button
                 className={
-                  activeNav === "Feedback"
+                  activeNav === "Benefits & Feedback"
                     ? "nav-item active"
                     : "nav-item"
                 }
                 type="button"
                 onClick={() =>
-                  handleNavClick("Feedback")
+                  handleNavClick("Benefits & Feedback")
                 }
               >
 
@@ -10856,7 +12354,7 @@ function App() {
                   ◈
                 </span>
 
-                Feedback
+                Benefits &amp; Feedback
 
               </button>
 
@@ -11084,8 +12582,8 @@ function App() {
           {view === "howto" &&
             renderHowToUse()}
 
-          {view === "feedback" &&
-            renderFeedback()}
+          {view === "benefits" &&
+            renderBenefitsFeedback()}
 
           {isAdmin && view === "admin-home" &&
             renderAdminDashboard()}
@@ -11110,6 +12608,9 @@ function App() {
 
           {isAdmin && view === "admin-feedback" &&
             renderAdminFeedback()}
+
+          {isAdmin && view === "admin-exec" &&
+            renderExecDashboard()}
 
           </div>
 
