@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -157,6 +159,89 @@ class CustomsCheckRequest(BaseModel):
             and self.cargo_type.strip()
             and self.cargo_subtype.strip()
         )
+
+
+# =========================================================
+# SUSTAINABILITY ANALYSIS REQUEST
+# =========================================================
+# Used by the Cost & Sustainability Agent. A voyage can be
+# identified by a route_id (preferred, straight from the
+# Route Agent) or by an origin/destination pair. The four
+# operational inputs are OPTIONAL overrides: when they are
+# omitted the agent derives what it can from routes.csv and
+# reports anything it still cannot score.
+#
+# Explicit inputs:
+#   emission_intensity   kg CO2 per nautical mile
+#   average_speed_knots  average sailing speed
+#   port_wait_hours      total port waiting / idle hours
+#   fuel_type            e.g. LNG, VLSFO, MGO, HFO
+#   vessel_type          overrides the routes.csv vessel type
+#
+# Values are validated by the agent; a missing or unsupported
+# value never invents a score.
+
+class SustainabilityAnalyzeRequest(BaseModel):
+
+    route_id: str = ""
+
+    origin: str = ""
+
+    destination: str = ""
+
+    cargo_type: str = ""
+
+    cargo_subtype: str = ""
+
+    containers: int = Field(default=1, ge=1)
+
+    emission_intensity: Optional[float] = None
+
+    average_speed_knots: Optional[float] = None
+
+    port_wait_hours: Optional[float] = None
+
+    fuel_type: str = ""
+
+    vessel_type: str = ""
+
+    def clean_route_id(self):
+
+        return self.route_id.strip()
+
+    def has_route(self):
+
+        """True when the request identifies a voyage to score."""
+
+        if self.clean_route_id():
+            return True
+
+        return bool(
+            self.origin.strip()
+            and self.destination.strip()
+        )
+
+    def has_explicit_input(self):
+
+        """True when at least one factor value was supplied."""
+
+        return any(
+            value is not None
+            for value in (
+                self.emission_intensity,
+                self.average_speed_knots,
+                self.port_wait_hours,
+            )
+        ) or bool(
+            self.fuel_type.strip()
+            or self.vessel_type.strip()
+        )
+
+    def is_scorable(self):
+
+        """True when a score can be attempted at all."""
+
+        return self.has_route() or self.has_explicit_input()
 
 
 # =========================================================

@@ -14021,3 +14021,470 @@ body,
     align-items: flex-start;
   }
 }
+
+/* =========================================================
+   SUSTAINABILITY INSIGHTS (COST & SUSTAINABILITY AGENT)
+   ========================================================= */
+/* Presentation for the user Route Intelligence results
+   view. Builds on the existing weather/customs card
+   conventions: same surfaces, spacing, radii and
+   typography. No chart library is used: the factor
+   bars and the contribution breakdown are pure CSS. */
+
+.sustainability-section {
+  margin-top: 20px;
+}
+
+.sustainability-card {
+  background: white;
+  border: 1px solid #dfe7ee;
+  border-radius: 15px;
+  box-shadow: 0 8px 30px rgba(19, 48, 75, 0.04);
+  padding: 24px 26px 26px;
+}
+
+.sustainability-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e7edf2;
+}
+
+.sustainability-card-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #eaf7ef;
+  border: 1px solid #cfe9da;
+  font-size: 20px;
+}
+
+.sustainability-card-header h2 {
+  margin: 5px 0 0;
+  color: #20364e;
+  font-size: 20px;
+}
+
+.sustainability-card-header p {
+  margin: 5px 0 0;
+  max-width: 560px;
+  color: #6e8397;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sustainability-card-loading {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #557087;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ---------- Overall score banner ---------- */
+
+.sustainability-score-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 20px;
+  padding: 20px 22px;
+  border-radius: 12px;
+  background: linear-gradient(120deg, #eefaf1 0%, #f8fcfa 100%);
+  border: 1px solid #cfe9da;
+}
+
+.sustainability-score-label {
+  display: block;
+  color: #6e8397;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sustainability-score-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.sustainability-score-value strong {
+  color: #14532d;
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sustainability-score-value span {
+  color: #557087;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sustainability-score-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 26px;
+}
+
+.sustainability-category-block,
+.sustainability-rating-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sustainability-category-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 800;
+  color: white;
+  letter-spacing: 0.04em;
+}
+
+.sustainability-category-strong {
+  background: #18763d;
+}
+
+.sustainability-category-moderate {
+  background: #b45309;
+}
+
+.sustainability-category-weak {
+  background: #b42318;
+}
+
+.sustainability-category-unknown {
+  background: #557087;
+}
+
+.sustainability-rating-block strong {
+  color: #1d3953;
+  font-size: 16px;
+}
+
+/* ---------- Four factor cards ---------- */
+
+.sustainability-factors {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.sustainability-factor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 17px;
+  border-radius: 10px;
+  background: rgba(247, 250, 253, 0.9);
+  border: 1px solid #d8e8f2;
+  border-left-width: 3px;
+}
+
+.sustainability-factor-scored {
+  border-left-color: #2f9e63;
+}
+
+.sustainability-factor-missing {
+  border-left-color: #c7d3dd;
+  background: #f9fbfd;
+}
+
+.sustainability-factor-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sustainability-factor-label {
+  color: #1d3953;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.sustainability-factor-weight {
+  color: #6e8397;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sustainability-factor-points {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.sustainability-factor-points strong {
+  color: #1d3953;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sustainability-factor-points span {
+  color: #6e8397;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sustainability-factor-track {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #e4edf4;
+  overflow: hidden;
+}
+
+.sustainability-factor-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #34a56a 0%, #1f8a52 100%);
+}
+
+.sustainability-factor-input {
+  color: #6e8397;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.sustainability-factor-input strong {
+  color: #36536d;
+}
+
+.sustainability-factor-missing-text {
+  color: #7d90a3;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+/* ---------- Weighted contribution breakdown ---------- */
+
+.sustainability-breakdown {
+  margin-top: 20px;
+  padding: 18px 18px 16px;
+  border-radius: 12px;
+  background: rgba(247, 250, 253, 0.9);
+  border: 1px solid #e2ebf2;
+}
+
+.sustainability-breakdown-title {
+  display: block;
+  color: #1d3953;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.sustainability-breakdown-bar {
+  display: flex;
+  width: 100%;
+  height: 26px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #e4edf4;
+}
+
+.sustainability-breakdown-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  transition: width 0.4s ease;
+}
+
+.sustainability-segment-emission_intensity {
+  background: #1f7a4d;
+}
+
+.sustainability-segment-speed_efficiency {
+  background: #2383c4;
+}
+
+.sustainability-segment-port_waiting {
+  background: #b45309;
+}
+
+.sustainability-segment-fuel_tier {
+  background: #6b4ea8;
+}
+
+.sustainability-breakdown-legend {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 20px;
+}
+
+.sustainability-breakdown-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.sustainability-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.sustainability-legend-label {
+  color: #36536d;
+  font-weight: 700;
+}
+
+.sustainability-legend-value {
+  color: #6e8397;
+  margin-left: auto;
+}
+
+/* ---------- Explanation / advisory ---------- */
+
+.sustainability-advisory {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: rgba(247, 250, 253, 0.9);
+  border: 1px solid #d8e8f2;
+}
+
+.sustainability-advisory-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #0c3556;
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sustainability-advisory strong {
+  display: block;
+  color: #1d3953;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sustainability-advisory span {
+  display: block;
+  margin: 5px 0 10px;
+  color: #557087;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.sustainability-advisory .sustainability-data-note {
+  margin-bottom: 0;
+  color: #7d90a3;
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* ---------- Fail-safe states ---------- */
+
+.sustainability-unavailable {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 20px;
+  padding: 18px;
+  border-radius: 10px;
+  background: #f7fafd;
+  border: 1px dashed #d3dfe8;
+}
+
+.sustainability-unavailable strong {
+  color: #557087;
+  font-size: 13px;
+}
+
+.sustainability-unavailable span {
+  color: #7d90a3;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.sustainability-missing-list {
+  color: #8a6d3b !important;
+  font-weight: 600;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 900px) {
+  .sustainability-factors {
+    grid-template-columns: 1fr;
+  }
+
+  .sustainability-breakdown-legend {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .sustainability-card {
+    padding: 20px 18px 22px;
+  }
+
+  .sustainability-card-header {
+    flex-wrap: wrap;
+  }
+
+  .sustainability-card-loading {
+    margin-left: 0;
+  }
+
+  .sustainability-score-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sustainability-score-value strong {
+    font-size: 38px;
+  }
+
+  .sustainability-score-meta {
+    width: 100%;
+    gap: 18px;
+  }
+}

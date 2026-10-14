@@ -18,7 +18,8 @@ from app.models import (
     RouteRequest,
     WeatherAnalyzeRequest,
     CustomsCheckRequest,
-    AssistantRequest
+    AssistantRequest,
+    SustainabilityAnalyzeRequest
 )
 from app.agents.route_agent import analyze_route
 from app.agents.quotation_service import (
@@ -37,6 +38,9 @@ from app.agents.customs_agent import (
     analyze_customs,
     get_customs_summary,
     list_customs_records
+)
+from app.agents.cost_sustainability_agent import (
+    calculate_sustainability_score
 )
 from app.agents.assistant_agent import (
     answer_user_question,
@@ -2103,6 +2107,142 @@ def get_customs_dataset_summary():
     summary.pop("gemini", None)
 
     return summary
+
+
+# ============================================================
+# SUSTAINABILITY ANALYSIS (COST & SUSTAINABILITY AGENT)
+# ============================================================
+# The Cost & Sustainability Agent grades one voyage on four
+# weighted factors (emission intensity 40%, speed efficiency
+# 25%, port waiting 15%, fuel/technology tier 20%) and
+# returns an overall score out of 100, a CII-style category
+# and every component score.
+#
+# Real application data is used wherever the dataset supports
+# it. routes.csv provides estimated CO2, sailing distance,
+# transit days, port calls, congestion and vessel type, so a
+# route_id alone is enough to score a voyage. The four
+# operational inputs can also be supplied explicitly and
+# always take precedence over the derived values.
+#
+# The agent is additive intelligence: it never changes route
+# selection, pricing, margin or quotations. No restricted
+# commercial information (margin, profit, selling price) is
+# ever included in the response.
+#
+# A voyage that cannot be scored is NOT an error: the endpoint
+# answers HTTP 200 with status "insufficient_data" and names
+# the missing inputs, so Route Intelligence keeps working.
+# ============================================================
+
+@app.post(
+    "/api/sustainability/analyze",
+    summary="Calculate the sustainability score for a voyage",
+    response_description=(
+        "The overall sustainability score out of 100, its "
+        "category and rating label, the four weighted factor "
+        "scores with their inputs, and an explanation of the "
+        "result."
+    )
+)
+def analyze_sustainability_route(
+    request: SustainabilityAnalyzeRequest
+):
+
+    # -------------------------------------------------
+    # VALIDATE THE REQUEST
+    # -------------------------------------------------
+    # The endpoint needs a route identity or at least one
+    # explicit factor value, otherwise there is nothing to
+    # score.
+
+    if not request.is_scorable():
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "A route_id (or an origin and destination "
+                "pair), or at least one factor value, is "
+                "required to calculate a sustainability score."
+            )
+        )
+
+    route_id = request.clean_route_id()
+
+    # -------------------------------------------------
+    # RESOLVE A ROUTE ID FROM A CORRIDOR
+    # -------------------------------------------------
+    # When only a corridor is supplied, run the existing
+    # Route Agent and score its recommended route. A route
+    # lookup failure is not fatal: explicit factor values
+    # still produce a score.
+
+    if not route_id and request.has_route():
+
+        try:
+
+            route_result = analyze_route(
+                request.origin,
+                request.destination,
+                request.cargo_type,
+                request.cargo_subtype,
+                request.containers
+            )
+
+            recommended = (
+                route_result.get("recommended_route") or {}
+            )
+
+            route_id = str(
+                recommended.get("route_id", "")
+            ).strip()
+
+        except ValueError:
+
+            route_id = ""
+
+        except Exception as error:
+
+            logger.warning(
+                "Sustainability route lookup failed: %s",
+                error
+            )
+
+            route_id = ""
+
+    # -------------------------------------------------
+    # RUN THE AGENT
+    # -------------------------------------------------
+
+    try:
+
+        result = calculate_sustainability_score(
+            route_id=route_id,
+            emission_intensity=request.emission_intensity,
+            average_speed_knots=request.average_speed_knots,
+            port_wait_hours=request.port_wait_hours,
+            fuel_type=request.fuel_type,
+            vessel_type=request.vessel_type
+        )
+
+    except Exception as error:
+
+        logger.warning(
+            "Sustainability analysis error: %s", error
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to calculate a sustainability score "
+                "for this voyage."
+            )
+        )
+
+    return {
+        "success": True,
+        "sustainability": result
+    }
 
 
 # ============================================================

@@ -10,6 +10,7 @@ import MapErrorBoundary from "./components/MapErrorBoundary.jsx";
 import CustomsComplianceCard, {
   CustomsStatusBadge,
 } from "./components/CustomsComplianceCard.jsx";
+import SustainabilityInsightsCard from "./components/SustainabilityInsightsCard.jsx";
 import AssistantWidget from "./components/AssistantWidget.jsx";
 import { alternativeColorFor } from "./utils/maritimeGeometry";
 
@@ -923,6 +924,22 @@ function App() {
   const [customs, setCustoms] = useState(null);
   const [customsLoading, setCustomsLoading] = useState(false);
 
+  // ==========================================
+  // SUSTAINABILITY INSIGHTS (COST &
+  // SUSTAINABILITY AGENT)
+  // ==========================================
+  // Additional, non-blocking intelligence for the
+  // recommended route, mirroring the Weather and
+  // Customs cards. Every score, category and factor
+  // value comes from the Cost & Sustainability Agent;
+  // nothing is calculated in this file.
+
+  const [sustainability, setSustainability] = useState(null);
+  const [sustainabilityLoading, setSustainabilityLoading] =
+    useState(false);
+  const [sustainabilityError, setSustainabilityError] =
+    useState("");
+
   const [adminCustoms, setAdminCustoms] = useState([]);
   const [adminCustomsTotal, setAdminCustomsTotal] =
     useState(0);
@@ -1037,6 +1054,8 @@ function App() {
     setResult(null);
     setWeather(null);
     setCustoms(null);
+    setSustainability(null);
+    setSustainabilityError("");
     setError("");
     setAcceptError("");
     setAcceptResult(null);
@@ -1664,6 +1683,100 @@ function App() {
   };
 
   // ==========================================
+  // LOAD ROUTE SUSTAINABILITY
+  // (COST & SUSTAINABILITY AGENT)
+  // ==========================================
+  // Independent, non-blocking intelligence for the
+  // recommended route. The agent derives the four
+  // factors from the project route dataset (estimated
+  // CO2, distance, transit days, port calls,
+  // congestion, vessel type) and any missing factor is
+  // reported by the agent itself, so no value is
+  // invented here.
+
+  const loadRouteSustainability = async (routeData) => {
+    const recommendedId = String(
+      getValue(
+        routeData?.recommended_route ||
+          routeData?.recommended ||
+          routeData?.best_route,
+        ["route_id", "routeId"],
+        ""
+      )
+    ).trim();
+
+    const origin = String(
+      routeData?.origin || ""
+    ).trim();
+    const destination = String(
+      routeData?.destination || ""
+    ).trim();
+
+    if (!recommendedId && !(origin && destination)) {
+      setSustainability(null);
+      setSustainabilityError("");
+      setSustainabilityLoading(false);
+      return;
+    }
+
+    setSustainabilityLoading(true);
+    setSustainabilityError("");
+
+    try {
+      const response = await fetch(
+        "/api/sustainability/analyze",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+
+          body: JSON.stringify({
+            route_id: recommendedId,
+            origin,
+            destination,
+            cargo_type: String(
+              routeData?.cargo_type || ""
+            ).trim(),
+            cargo_subtype: String(
+              routeData?.cargo_subtype || ""
+            ).trim(),
+          }),
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Unable to calculate a sustainability score for this route."
+        );
+      }
+
+      setSustainability(data?.sustainability || null);
+    } catch (err) {
+      // Fail-safe: the sustainability module is
+      // additional intelligence, so a failure is
+      // logged and the card falls back to its safe
+      // "Score Unavailable" state.
+      console.error("Sustainability analysis error:", err);
+
+      setSustainability(null);
+      setSustainabilityError(
+        err?.message ||
+          "Unable to calculate a sustainability score for this route."
+      );
+    } finally {
+      setSustainabilityLoading(false);
+    }
+  };
+
+  // ==========================================
   // ANALYZE ROUTE
   // ==========================================
 
@@ -1674,6 +1787,8 @@ function App() {
     setResult(null);
     setWeather(null);
     setCustoms(null);
+    setSustainability(null);
+    setSustainabilityError("");
     setQuotation(null);
     setQuotationError("");
     setQuotationSuccess("");
@@ -1777,6 +1892,11 @@ function App() {
       // Customs Agent: independent, non-blocking
       // customs intelligence for the same shipment.
       loadRouteCustoms(data);
+
+      // Cost & Sustainability Agent: independent,
+      // non-blocking sustainability scoring for the
+      // recommended route.
+      loadRouteSustainability(data);
     } catch (err) {
       console.error("Route analysis error:", err);
 
@@ -1803,6 +1923,8 @@ function App() {
     setResult(null);
     setWeather(null);
     setCustoms(null);
+    setSustainability(null);
+    setSustainabilityError("");
     setQuotation(null);
     setQuotationError("");
     setQuotationSuccess("");
@@ -1914,6 +2036,10 @@ function App() {
       // Customs Agent: same independent, non-blocking
       // behaviour for customs requirements.
       loadRouteCustoms(data);
+
+      // Cost & Sustainability Agent: same independent,
+      // non-blocking behaviour for sustainability.
+      loadRouteSustainability(data);
     } catch (err) {
       console.error("Route map analysis error:", err);
 
@@ -4947,6 +5073,19 @@ function App() {
             <CustomsComplianceCard
               customs={customs}
               loading={customsLoading}
+              route={recommendedRoute}
+            />
+          </div>
+        )}
+
+        {/* SUSTAINABILITY INSIGHTS (COST & SUSTAINABILITY AGENT) */}
+
+        {recommendedRoute && (
+          <div className="sustainability-section">
+            <SustainabilityInsightsCard
+              sustainability={sustainability}
+              loading={sustainabilityLoading}
+              error={sustainabilityError}
               route={recommendedRoute}
             />
           </div>
