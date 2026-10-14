@@ -1,272 +1,404 @@
-# 🚢 MARITIME AI — Agentic AI for Maritime Freight Pricing and Route Optimization
+# MARITIME AI — Agentic Maritime Brokerage Platform
 
-An AI-powered maritime brokerage platform designed to support freight quotation, route optimization, shipment management, and sustainability assessment through specialized software agents.
+An AI-powered maritime freight brokerage platform that helps users analyze shipping routes, estimate freight quotations, evaluate weather risks, and assess shipment sustainability through specialized agents.
 
-## 📌 Project Overview
+## 1. Project Overview
 
-Maritime freight operations involve multiple decisions, including estimating shipping costs, selecting suitable routes, managing quotations, tracking shipment progress, and evaluating operational efficiency.
+Maritime freight decisions involve several factors, including transportation cost, transit time, route availability, weather conditions, operational risks, and environmental impact.
 
-**MARITIME AI** brings these activities together in a single web-based platform. It uses a frontend interface, a backend API, data-driven pricing, route analysis, and specialized agents to help users and administrators manage maritime brokerage workflows.
+**MARITIME AI** brings these considerations together in a single web application. Its agent-based architecture separates different responsibilities into specialized modules, allowing the platform to analyze shipment requirements and present relevant information through a user-friendly interface.
 
-## 🎯 Objectives
+### Key objectives
 
-- Estimate maritime freight prices using a pricing module.
-- Analyze shipping routes between origin and destination ports.
-- Support quotation creation and shipment management.
-- Calculate estimated arrival times (ETA).
-- Evaluate voyage sustainability using predefined scoring rules.
-- Provide separate user and administrator workflows.
-- Improve visibility into shipment status, operational decisions, and feedback.
+- Simplify maritime freight quotation and route comparison.
+- Support informed route-selection decisions.
+- Assess weather-related shipping risks.
+- Provide shipment and quotation management workflows.
+- Evaluate sustainability using transparent, rule-based scoring.
+- Provide separate experiences for users and administrators.
 
-## ✨ Key Features
+## 2. Features
 
-### 1. Freight Price Estimation
+### Route Intelligence
 
-The freight pricing module estimates shipping costs using shipment-related information and a pricing model.
+- Analyze available origin–destination combinations.
+- Compare routes using available transit-time, distance, and transshipment information.
+- Calculate route scores using the application's implemented logic.
+- Present alternative routes where available.
 
-The project documentation identifies a **Random Forest model** for freight price prediction. The model's actual input features and output depend on the implemented pricing pipeline.
+### Freight Pricing and Quotations
 
-### 2. Route Optimization
+- Generate freight quotation estimates using the available pricing data and pricing agent.
+- Calculate quotation totals using the existing quotation workflow.
+- Support quotation review and acceptance.
+- Create shipments through the implemented quotation-to-shipment workflow.
 
-The route optimization module analyzes available connections between ports to identify a suitable route.
+> Quotation amounts are application estimates and should not be treated as binding carrier offers unless connected to verified commercial rates.
 
-The documented approach uses graph-based route processing with NetworkX. Ports can be represented as nodes and shipping connections as edges. Route selection depends on the costs or weights used by the implementation.
+### Weather Risk Assessment
 
-### 3. Agent-Based Architecture
+- Evaluate available weather information for route or shipment analysis.
+- Use the existing weather agent and configured data sources.
+- Present weather-risk information to help users understand potential shipping disruptions.
 
-The backend contains specialized agents and services for different parts of the maritime workflow.
+Weather information depends on the application's configured data source and its availability. The application should not be described as providing live vessel tracking or guaranteed forecasts unless those capabilities are implemented and verified.
 
-The repository includes modules for:
+### Sustainability Insights
 
-- Route analysis
-- Freight pricing
-- Margin calculation
-- Quotation orchestration
-- Weather-related information
-- Customs-related information
-- Cost and sustainability assessment
+The Sustainability Insights feature introduces a rule-based assessment of environmental and operational factors associated with a shipping option.
 
-These modules separate responsibilities and support a structured workflow. The exact degree of autonomous coordination depends on the implemented orchestration logic.
-
-### 4. Cost and Sustainability Assessment
-
-The `CostSustainabilityAgent` evaluates a voyage using four factors:
+The documented scoring structure allocates up to 100 points across four factors:
 
 | Factor | Weight |
 |---|---:|
-| Emission intensity | 40% |
-| Speed-to-efficiency | 25% |
-| Port waiting and idle time | 15% |
-| Fuel and technology tier | 20% |
+| Emission intensity | 40 points |
+| Speed efficiency | 25 points |
+| Port idle/waiting time | 15 points |
+| Fuel or technology tier | 20 points |
+| **Total** | **100 points** |
 
-The scoring function applies predefined rules to calculate component scores, produces an overall score intended to range from 0 to 100, and assigns a category using configured thresholds.
+The feature is designed to present an overall score, factor-level contributions, and an explanation of the result.
 
-The result includes the sustainability score, category, rating label, and individual component scores. This provides an explainable, rule-based assessment rather than relying solely on a black-box prediction.
+**Important implementation note:** The original `CostSustainabilityAgent` was not present in the repository when this feature was developed. Therefore, the newly created formulas and thresholds must be treated as provisional application-defined rules, not as official IMO Carbon Intensity Indicator (CII) calculations or certified environmental ratings.
 
-### 5. Estimated Time of Arrival (ETA)
+The actual score categories, thresholds, input requirements, and response fields must match the current implementation in `backend/app/agents/cost_sustainability_agent.py`.
 
-The platform includes ETA-related functionality to support shipment planning and arrival estimates.
+If required inputs are unavailable, the application should communicate the limitation instead of presenting invented values as actual measurements.
 
-An ETA is an estimate and may change because of weather, congestion, vessel speed, or operational delays. It should not be interpreted as proof of real-time GPS or AIS vessel tracking unless those integrations are implemented.
+### Shipment Management
 
-### 6. Shipment and Quotation Workflow
+The platform supports shipment-related workflows based on the existing implementation, including:
 
-The platform supports maritime brokerage activities involving quotations and shipments.
+1. Quotation review.
+2. Quotation acceptance.
+3. Shipment creation.
+4. Booking confirmation.
+5. Cargo readiness.
+6. Origin-port arrival.
+7. Vessel departure.
+8. In-transit status.
+9. Destination-port arrival.
+10. Delivery.
 
-The intended workflow covers quotation preparation, quotation decisions, shipment creation, booking and shipment-status updates, and delivery progress. The actions available depend on the configured user permissions and current application implementation.
+The displayed status sequence represents the application's shipment workflow. Real-time GPS or Automatic Identification System (AIS) tracking requires an appropriate external integration.
 
-### 7. User and Administrator Functions
+### User Dashboard
 
-The platform separates regular user operations from administrator functions.
+Depending on the implemented modules, users can access their quotations, shipments, shipment details, and relevant route or sustainability information.
 
-**User-side activities**
-- Access the user interface.
-- Work with quotations and shipment information.
-- Review available shipment details.
-- Use supported route, pricing, and ETA features.
-- Submit feedback where the feedback workflow is enabled.
+Users should only be able to access records permitted by their account and role.
 
-**Administrator-side activities**
-- Access administrative dashboards.
-- Review operational information.
-- Manage supported shipment and user workflows.
-- Review submitted feedback.
-- Access administrative analytics where implemented.
+### Admin Dashboard
 
-Access control should be enforced by the backend as well as the frontend.
+The administrator interface supports the administrative modules implemented in the application, such as dashboard analytics, feedback management, pricing administration, or other configured management functions.
 
-## 🧠 Sustainability Scoring Logic
+Administrative data and internal commercial information must remain restricted to authorized administrators.
 
-The sustainability agent uses explicit conditional formulas to assign points to different operational factors.
+### Customer-Facing AI Chatbot
 
-The general scoring process is:
+The application includes a customer-facing maritime AI chatbot module intended to help users interact with the platform and obtain assistance with maritime-related questions.
 
-1. Read the relevant voyage and fuel inputs.
-2. Calculate the emission-intensity score.
-3. Calculate the speed-efficiency score.
-4. Calculate the port-waiting score.
-5. Assign fuel-category points.
-6. Combine the component scores and apply the configured score limits.
-7. Assign a sustainability category and rating label.
-8. Return the total and component-level results.
+Its actual capabilities depend on the configured implementation and integrations.
 
-This makes the scoring process easier to explain and debug because each component can be inspected separately.
+## 3. Agent-Based Architecture
 
-**Note:** The configured CII-style labels are application scoring labels; they should not be treated as official regulatory ratings without validation against the applicable IMO methodology.
+The backend separates the platform's responsibilities into specialized modules.
 
-## 🏗️ Technology Stack
+| Component | Responsibility |
+|---|---|
+| Route Agent | Route analysis and alternative comparison |
+| Pricing Agent | Freight-price estimation |
+| Margin Agent | Commercial margin calculations, subject to access restrictions |
+| Quotation Service | Quotation creation and processing |
+| Orchestrator | Coordinates relevant agent operations |
+| Weather Agent | Weather-risk analysis |
+| Customs Agent | Customs-related functionality implemented by the project |
+| Sustainability Agent | Rule-based sustainability scoring |
+| Executive Dashboard Service | Administrative or executive analytics |
 
-The project repository and documentation reference the following technologies. Check the current dependency files and configuration before treating every item as part of the final deployed version.
+These components should be understood according to their actual source code. Not every agent necessarily uses a large language model; some components may use ordinary Python logic, calculations, datasets, or external APIs.
 
-| Component | Technology |
+## 4. Technology Stack
+
+The project uses a web-based architecture with frontend and backend components.
+
+| Layer | Technology |
 |---|---|
 | Frontend | React |
-| Language | JavaScript / TypeScript, depending on the module |
-| Frontend tooling | Vite |
-| UI styling | Tailwind CSS and application styles |
-| Backend API | Python and FastAPI |
-| Freight pricing | Random Forest model |
-| Route analysis | NetworkX / graph-based processing |
-| Map integration | Leaflet, where enabled |
-| Data storage | Use the database configured in the current repository |
-| Data processing | Python and supporting libraries |
+| UI styling | CSS |
+| Frontend build tooling | Vite |
+| Backend | Python |
+| API framework | FastAPI |
+| Data processing | Python and application-specific logic |
+| Testing | Python testing tools, including pytest where configured |
+| Version control | Git and GitHub |
 
-## 📂 Project Structure
+The database, AI provider, charting library, and external service integrations should be documented according to the packages and configuration actually present in the repository. Do not assume that an integration is configured merely because it is mentioned in this document.
 
-The repository contains frontend and backend components. The following paths are based on the project structure discussed during development; individual files may change as the application evolves.
+## 5. System Architecture
+
+The application follows this general request flow:
+
+1. A user interacts with the React frontend.
+2. The frontend sends a request to the backend API.
+3. The backend validates the request and applies authentication and authorization rules.
+4. The relevant service or agent processes the request.
+5. The backend returns the result in the API response.
+6. The frontend displays the result.
+
+For example, a sustainability assessment should follow this flow:
+
+**Frontend → Sustainability API → Sustainability Agent → Validated Score and Factor Breakdown → Frontend Panel**
+
+The agent should remain separate from the presentation layer so that the scoring logic can be tested independently.
+
+## 6. Project Structure
+
+The following is the expected organization of the relevant project files. Verify the exact paths against your current repository.
 
 ```text
 Agentic-AI-Maritime-Brokerage/
 ├── backend/
 │   ├── main.py
-│   └── app/
-│       ├── agents/
-│       │   ├── route_agent.py
-│       │   ├── pricing_agent.py
-│       │   ├── margin_agent.py
-│       │   ├── quotation_service.py
-│       │   ├── orchestrator.py
-│       │   ├── weather_agent.py
-│       │   ├── customs_agent.py
-│       │   └── cost_sustainability_agent.py
-│       ├── data/
-│       └── routes.csv
+│   ├── app/
+│   │   ├── agents/
+│   │   │   ├── route_agent.py
+│   │   │   ├── pricing_agent.py
+│   │   │   ├── margin_agent.py
+│   │   │   ├── quotation_service.py
+│   │   │   ├── orchestrator.py
+│   │   │   ├── weather_agent.py
+│   │   │   ├── customs_agent.py
+│   │   │   └── cost_sustainability_agent.py
+│   │   ├── services/
+│   │   │   └── executive_dashboard.py
+│   │   ├── data/
+│   │   │   └── pricing.csv
+│   │   ├── models.py
+│   │   ├── routes.csv
+│   │   └── weather.csv
+│   └── tests/
+│       └── test_sustainability_agent.py
 ├── frontend/
 │   └── src/
 │       ├── App.jsx
-│       └── App.css
+│       ├── App.css
+│       └── components/
+│           └── SustainabilityInsightsCard.jsx
 └── README.md
 ```
 
-This is an illustrative overview, not a complete listing of every file in the repository.
+This is a representative structure, not a guarantee that every listed file exists or that no additional files are present.
 
-## ⚙️ Getting Started
+## 7. Installation and Setup
 
 ### Prerequisites
 
-Install the software required by your current project configuration:
+Install the following tools:
 
-- Python
-- Node.js and npm
-- Git
+- Python version supported by the project's dependencies.
+- Node.js and npm.
+- Git.
+- A code editor such as Visual Studio Code.
+- Credentials for any external services required by the application.
 
-### 1. Clone the repository
+### Clone the repository
 
 ```bash
 git clone https://github.com/deekshiths06/Agentic-AI-Maritime-Brokerage.git
 cd Agentic-AI-Maritime-Brokerage
 ```
 
-### 2. Set up the backend
+### Set up the backend
 
-Open a terminal in the project directory and enter the backend folder:
-
-```bash
-cd backend
-python -m venv venv
-```
-
-Activate the environment on Windows PowerShell:
+Open a terminal in the project directory:
 
 ```powershell
+cd backend
+python -m venv venv
 .\venv\Scripts\Activate.ps1
 ```
 
-Install the dependencies using the repository's requirements file, if present:
+Install the dependencies using the repository's actual dependency file. If it contains `requirements.txt`, run:
 
-```bash
-pip install -r requirements.txt
+```powershell
+python -m pip install -r requirements.txt
 ```
 
-Start the backend using the application's actual entry point. If `main.py` exposes the FastAPI application as `app`, a typical command is:
+Start the FastAPI application using the entry point and port configured in the project. For example, if `main.py` exposes the FastAPI object as `app`:
 
-```bash
-uvicorn main:app --reload
+```powershell
+python -m uvicorn main:app --reload
 ```
 
-If the application entry point is `app.main:app` or uses another module path, use the command appropriate to the current project structure.
+If the project uses a different module path or port, use the corresponding command instead.
 
-### 3. Set up the frontend
+When the server starts successfully, FastAPI commonly exposes interactive API documentation at:
 
-Open another terminal and navigate to the frontend folder:
+`http://127.0.0.1:8000/docs`
 
-```bash
+The address and port depend on the actual server configuration.
+
+### Set up the frontend
+
+Open a separate terminal:
+
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-Open the local URL displayed by Vite in the terminal.
+Open the local URL printed by Vite in the terminal.
 
-**Configuration note:** API URLs, database settings, model paths, environment variables, and other prerequisites must match your actual application configuration. Do not commit passwords, API keys, or `.env` secrets to GitHub.
+If the frontend requires a backend URL, configure it using the project's documented environment variables. Never commit secrets or private API keys to GitHub.
 
-## 🧪 Testing
+## 8. Sustainability API
 
-Before using or presenting the application, verify the following:
+The sustainability API should accept the inputs required by the current agent, validate them, and return the overall score and factor-level results.
 
-- Backend starts without errors.
-- Frontend loads and communicates with the backend.
-- Freight price estimation returns valid results.
-- Route optimization handles supported ports and missing routes.
-- ETA functionality returns valid estimates.
-- Sustainability scoring returns a total and component breakdown.
-- Quotation and shipment status transitions behave correctly.
-- User and administrator permissions are enforced.
-- Database operations handle invalid input and missing records.
-- Feedback and dashboard features behave as expected.
+Before documenting an exact endpoint, request schema, or response example, verify the implementation in `backend/main.py` and the sustainability agent.
 
-Only report tests as passing after running them against the version being submitted.
+The API documentation should explain:
 
-## 🔐 Security Considerations
+- The actual HTTP method and endpoint path.
+- Required and optional input fields.
+- Units for emissions, speed, and waiting time.
+- Validation rules and supported fuel or technology categories.
+- The score calculation and category thresholds.
+- The response fields and error responses.
+- How missing or unavailable inputs are handled.
 
-- Authenticate users before providing protected data.
-- Enforce role and ownership checks on the backend.
-- Use parameterized database operations.
-- Validate incoming request data.
-- Store credentials in environment variables or an appropriate secret manager.
-- Avoid exposing confidential commercial information, including internal margin calculations, to unauthorized users.
-- Do not expose private shipment information across user accounts.
+The endpoint should not invent environmental measurements or imply that provisional scores are official certifications.
 
-## 🚀 Future Enhancements
+## 9. Testing
 
-Possible future improvements include:
+Run the tests supported by the repository.
 
-- Integration with reliable real-time vessel AIS data.
-- More detailed weather-aware route analysis.
-- Expanded fuel and emissions datasets.
-- Improved freight pricing validation against actual quotations.
-- Better uncertainty estimates for ETA and freight prices.
-- Additional maritime analytics and sustainability reports.
-- More comprehensive authorization and automated testing.
+If pytest is configured, a typical backend command is:
 
-These are potential enhancements, not claims about existing features.
+```powershell
+python -m pytest backend/tests -v
+```
 
-## 🎓 Project Purpose
+If running from inside the `backend` directory, the equivalent path may be:
 
-MARITIME AI demonstrates how a web application, backend services, data-driven pricing, graph-based route analysis, and specialized agents can be combined to support maritime freight brokerage workflows.
+```powershell
+python -m pytest tests -v
+```
 
-The project aims to make maritime decisions more structured, transparent, and easier to manage.
+Run the frontend production build:
 
-## 👨‍💻 Repository
+```powershell
+cd frontend
+npm run build
+```
 
-GitHub: https://github.com/deekshiths06/Agentic-AI-Maritime-Brokerage.git
+Tests for the sustainability agent should cover:
+
+- Valid input values.
+- Missing or invalid inputs.
+- Boundary values for each scoring factor.
+- Minimum and maximum score behavior.
+- Consistency between the factor breakdown and overall score.
+- Correct category selection at configured thresholds.
+
+Also regression-test existing authentication, route analysis, quotations, shipments, and admin permissions.
+
+Only report tests as passing when they have actually completed successfully.
+
+## 10. Security and Reliability
+
+- Keep credentials in environment variables or a secure secrets manager.
+- Validate and sanitize API inputs.
+- Enforce authentication and role-based authorization on the backend.
+- Restrict users to records they are authorized to access.
+- Protect administrative functions and internal margin information.
+- Avoid logging passwords, tokens, or sensitive personal data.
+- Handle API failures and missing data gracefully.
+- Avoid presenting simulated shipment status as real-time GPS tracking.
+- Keep external API keys and private configuration files out of version control.
+
+## 11. Limitations
+
+The platform's reliability depends on the quality and freshness of its underlying data.
+
+Potential limitations include:
+
+- Pricing results may depend on sample datasets or configured rates.
+- Weather analysis depends on the availability and coverage of its data source.
+- Route rankings depend on the implemented scoring methodology.
+- Sustainability scores depend on input quality and provisional scoring rules.
+- Shipment status updates do not necessarily indicate a vessel's live physical location.
+- Chatbot functionality depends on its actual model or service configuration.
+- Production deployment requires appropriate security, monitoring, and environment configuration.
+
+These limitations should be updated as the project gains verified integrations and testing.
+
+## 12. Future Enhancements
+
+Potential future work includes:
+
+- Integration with verified carrier and freight-rate data.
+- More detailed route-risk analysis.
+- Verified vessel and port information.
+- AIS-based vessel tracking, where appropriate data access is available.
+- Better provenance and freshness indicators for external data.
+- Validation of sustainability methodology against applicable standards.
+- Multilingual support for maritime users.
+- Improved automated testing and production monitoring.
+- Deployment with secure configuration and observability.
+
+These are possible enhancements, not claims about current functionality.
+
+## 13. Git Workflow
+
+Check the current state before staging changes:
+
+```bash
+git status
+git diff
+```
+
+Stage only the intended files:
+
+```bash
+git add README.md
+git add <reviewed-file-paths>
+```
+
+Commit the changes:
+
+```bash
+git commit -m "Update project documentation"
+```
+
+Fetch the latest remote information:
+
+```bash
+git fetch origin
+```
+
+If the local and remote branches have diverged, inspect the history before integrating changes. Do not force-push or rewrite shared history without first preserving and verifying all relevant commits.
+
+Push only after the branch is safely synchronized:
+
+```bash
+git push origin main
+```
+
+## 14. Project Summary
+
+**MARITIME AI — Agentic Maritime Brokerage Platform** is a web application designed to bring together maritime route analysis, freight quotation estimation, weather-risk assessment, shipment management, and sustainability insights.
+
+Its modular architecture makes it possible to extend the platform with specialized agents and services while keeping the frontend, API, business logic, and data processing responsibilities separate.
+
+The goal is to support more informed maritime decisions through clear information, explainable calculations, and a maintainable application architecture.
+
+---
+
+**Repository:** https://github.com/deekshiths06/Agentic-AI-Maritime-Brokerage
+
+**Project:** MARITIME AI — Agentic Maritime Brokerage Platform
+
+**Documentation status:** Update this README whenever the actual API, dependencies, setup process, features, or scoring methodology changes. Verify all paths and commands against the current repository before publishing.
